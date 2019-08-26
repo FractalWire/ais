@@ -13,6 +13,7 @@ class Message(models.Model):
     # longitude = models.FloatField()
     # latitude = models.FloatField()
     point = models.PointField(geography=True)
+    valid_position = models.BooleanField(default=True)
     cog = models.FloatField(default=360.0)
     sog = models.FloatField(default=102.4)
     heading = models.IntegerField(default=511)
