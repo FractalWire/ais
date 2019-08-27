@@ -4,26 +4,45 @@ from time import sleep
 import aisreceiver.endpoints.aishubapi as aishubapi
 from core.models import Message
 from .aismessage import Infos, Position, default_infos, infos_keys
-from .buffer import position_buffer, infos_buffer
+from .buffer import position_buffer, infos_buffer, buffer_lock
+
+# Update interval to store the latest position received
+# TODO: put that in a config file maybe
+MESSAGE_UPDATE_WINDOW = 5*60  # in seconds
 
 
-def start():
+run = True
+
+
+def start() -> None:
 
     # 1) launch endpoint listeners
-    # 2) init infos_dict
-    # 3) every X minutes :
-    #    - update database from positions_dict and infos dict
-    #    - flush positions_dict
-
     aishubapi.start()
 
+    # 2) init infos_buffer
+    with buffer_lock:
+        init_infos_buffer()
 
-def stop():
+    # 3) every X minutes :
+    #    - update database from position_buffer and infos_buffer
+    #    - flush positions_buffer
+
+    while run:
+
+        with buffer_lock:
+            messages = make_batch_messages()
+            Message.objects.batch_create(messages)
+            position_buffer.clear()
+
+        sleep(MESSAGE_UPDATE_WINDOW)
+
+
+def stop() -> None:
     pass
 
 
-def init_infos_dict() -> None:
-    """Initialises infos_dict with existing corresponding Message fields in 
+def init_infos_buffer() -> None:
+    """Initialises infos_buffer with existing corresponding Message fields from 
     the database"""
 
     last_infos = (Message.objects.distinct('mmsi')
