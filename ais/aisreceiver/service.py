@@ -2,7 +2,7 @@
 from time import sleep
 
 import aisreceiver.endpoints.aishubapi as aishubapi
-from .models import Message
+from core.models import Message
 from .aismessage import Infos, Position, default_infos, infos_keys
 from .buffer import position_buffer, infos_buffer
 
