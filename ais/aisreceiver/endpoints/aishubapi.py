@@ -9,34 +9,13 @@ import json
 import threading
 from io import BytesIO
 from enum import Flag, IntFlag
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 from django.contrib.gis.geos import Point
 
 from aisreceiver.aismessage import Infos, Position, infos_keys, position_keys
 from aisreceiver.buffer import buffer_lock, infos_buffer, position_buffer
-
-# TODO: Put that in a config file maybe
-# minimum value: 1 minute. AisHub does not allowed more frequent update
-_POSITIONS_UPDATE_WINDOW = 5 * 60  # in seconds
-
-URL = 'http://data.aishub.net/ws.php?'
-
-parameters = {
-    'username': '',
-    'format': Format.AIS_ENCODING.value,
-    'output': Output.JSON.value,
-    'compress': Compression.GZIP.value,
-
-    # optional parameters
-    # 'latmin': '',
-    # 'latmax': '',
-    # 'lonmin': '',
-    # 'lonmax': '',
-    # 'mmsi': '',
-    # 'imo': '',
-}
 
 
 class Format(IntFlag):
@@ -57,26 +36,54 @@ class Compression(IntFlag):
     BZIP2 = 3
 
 
-def _fetch_last_data(compression: Compression = Compression.GZIP) -> List[Dict[str, str]]:
+# TODO: Put that in a config file maybe
+# minimum value: 1 minute. AisHub does not allowed more frequent update
+_POSITIONS_UPDATE_WINDOW = 5 * 60  # in seconds
+
+URL = 'http://data.aishub.net/ws.php?'
+
+format_ = Format.AIS_ENCODING
+output = Output.JSON
+compression = Compression.GZIP
+
+parameters = {
+    'username': '',
+    'format': format_.value,
+    'output': output.value,
+    'compress': compression.value,
+
+    # optional parameters
+    # 'latmin': '',
+    # 'latmax': '',
+    # 'lonmin': '',
+    # 'lonmax': '',
+    # 'mmsi': '',
+    # 'imo': '',
+}
+
+
+def _fetch_last_data() -> List[Dict[str, str]]:
     """Fetch last data via AisHubAPI"""
     data = {}
     if compression != Compression.GZIP:
-        raise Exception(f"{compression} method not implemented yet,"
+        raise Exception(f"{compression} compression not supported yet,"
                         " please use another compression method.")
+    if output != Output.JSON:
+        raise Exception(f"{output} output not supported yet,"
+                        " please use another output format.")
     try:
         response = requests.get(URL, params=parameters)
         gz = gzip.GzipFile(fileobj=BytesIO(response.content))
         data = json.loads(gz.read())
     except Exception as err:
         # TODO: log error
-        print('Error when trying to retrieve AisHub last data:' + err,
+        print('Error when trying to retrieve AisHub last data:', err,
               file=sys.stderr)
 
     return data
 
 
-def _extract_infos(message: Dict[str, str],
-                   format_: Format = Format.AIS_ENCODING) -> Infos:
+def _extract_infos(message: Dict[str, str]) -> Infos:
     """Extract infos data from a raw message and cast it to output an
     Infos object"""
     if format_ != Format.AIS_ENCODING:
@@ -112,8 +119,7 @@ def _extract_infos(message: Dict[str, str],
     return Infos(**tmp_dict)
 
 
-def _extract_position(message: Dict[str, str],
-                      format_: Format = Format.AIS_ENCODING) -> Position:
+def _extract_position(message: Dict[str, str]) -> Position:
     """Extract position data from a raw message and cast it to output a
     Position object"""
     if format_ != Format.AIS_ENCODING:
@@ -126,7 +132,7 @@ def _extract_position(message: Dict[str, str],
         if k == 'MMSI':
             tmp_dict['mmsi'] = v
         elif k == 'TIME':
-            tmp_dict['time'] = datetime.fromtimestamp(int(v))
+            tmp_dict['time'] = datetime.fromtimestamp(int(v), timezone.utc)
         elif k == 'LATITUDE':
             lat = int(v)/600000
             if lat**2 > 90**2:
@@ -138,7 +144,7 @@ def _extract_position(message: Dict[str, str],
         elif k == 'COG':
             tmp_dict['cog'] = int(v)/10
         elif k == 'SOG':
-            tmp_dict['SOG'] = int(v)/10
+            tmp_dict['sog'] = int(v)/10
         elif k == 'HEADING':
             tmp_dict['heading'] = int(v)
         elif k == 'PAC':
@@ -159,26 +165,26 @@ def _extract_infos_position(data: List[Dict[str, str]]
                             ) -> Tuple[Dict[str, Infos], Dict[str, Position]]:
     """Extract Infos and Position from data and put those in a dict indexed by
     mmsi. This make it ready to consume for the buffer dictionaries"""
-    infos_position = {}
+    infos_dict, position_dict = {}, {}
 
     for message in data:
         try:
-            mmsi = message['mmsi']
+            mmsi = message['MMSI']
             infos = _extract_infos(message)
             position = _extract_position(message)
-            infos_buffer[mmsi] = infos
+            infos_dict[mmsi] = infos
             position_dict[mmsi] = position
-        except KeyError err:
+        except KeyError as err:
             # TODO: log error
-            print('Error when extracting data: missing MMSI field ? ' + err,
+            print('Error when extracting data: missing MMSI field ?', str(err),
                   file=sys.stderr)
-        except TypeError err:
+        except TypeError as err:
             # TODO: log error
             print('Error when extracting data: '
-                  'missing required fields for Infos or Position ? ' + err,
+                  'missing required fields for Infos or Position ?', str(err),
                   file=sys.stderr)
 
-    return (infos_buffer, position_dict,)
+    return (infos_dict, position_dict,)
 
 
 run = True

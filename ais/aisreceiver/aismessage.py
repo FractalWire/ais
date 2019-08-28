@@ -27,7 +27,7 @@ class Infos(NamedTuple):
 
 
 default_infos = Infos('DEFAULT')
-infos_keys = default_infos._asdict.keys()
+infos_keys = default_infos._asdict().keys()
 
 
 class Position(NamedTuple):
@@ -47,4 +47,4 @@ class Position(NamedTuple):
 
 
 default_position = Position('DEFAULT', datetime.fromtimestamp(0), Point(0, 0))
-position_keys = default_position._asdict.keys()
+position_keys = default_position._asdict().keys()

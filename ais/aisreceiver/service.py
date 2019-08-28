@@ -1,8 +1,8 @@
 """Module used to manage aisreceiver service"""
 from time import sleep
 
-import aisreceiver.endpoints.aishubapi as aishubapi
 from core.models import Message
+from .endpoints import aishubapi
 from .aismessage import Infos, Position, default_infos, infos_keys
 from .buffer import position_buffer, infos_buffer, buffer_lock
 
