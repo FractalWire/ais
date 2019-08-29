@@ -7,7 +7,7 @@ from datetime import datetime
 
 class Message(models.Model):
     """Various informations sent by the vessel via AIS"""
-    mmsi = models.CharField(max_length=16)
+    mmsi = models.IntegerField()
     time = models.DateTimeField()
     # longitude = models.FloatField()
     # latitude = models.FloatField()
@@ -20,7 +20,7 @@ class Message(models.Model):
     rot = models.IntegerField(default=0)
     navstat = models.IntegerField(default=15)
 
-    imo = models.CharField(max_length=16, blank=True, default='')
+    imo = models.IntegerField(null=True, blank=True, default=None)
     callsign = models.CharField(max_length=16, blank=True, default='')
     name = models.CharField(max_length=128, blank=True, default='')
     ship_type = models.IntegerField(default=0)
