@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from typing import NamedTuple
 from datetime import datetime
 
@@ -36,7 +37,8 @@ class Position(NamedTuple):
     time: datetime
     # longitude: float
     # latitude: float
-    point: Point = Point(181, 91)
+    point: Point
+    valid_position: bool = True
     cog: int = 360.0
     sog: float = 102.4
     heading: int = 511

@@ -1,0 +1,32 @@
+version: 1
+formatters:
+    default:
+        format: '{asctime} [{levelname}] @ {name}.{funcName}() {message}'
+        style: '{'
+    brief:
+        format: '{asctime} [{levelname}] {message}'
+        style: '{'
+handlers:
+    precise:
+        class: logging.FileHandler
+        formatter: brief
+        filename: logs/ais.log
+        mode: w
+        level: INFO
+    aisreceiver:
+        class: logging.FileHandler
+        formatter: default
+        filename: logs/aisreceiver.log
+        mode: w
+        level: DEBUG
+    console:
+        class: logging.StreamHandler
+        formatter: brief
+        level: INFO
+loggers:
+    aisreceiver:
+        level: DEBUG
+        handlers: [aisreceiver, console]
+root:
+    level: INFO
+    handlers: [precise]

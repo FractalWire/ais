@@ -16,15 +16,82 @@ class ExtractDataTestCase(test.SimpleTestCase):
 
     @classmethod
     def setUpClass(cls):
-        rawmessages = '[{"MMSI": "244070156", "TIME": "1302514295", "LONGITUDE": "2912427", "LATITUDE": "31091961", "COG": "1513", "SOG": "40", "HEADING": "511", "NAVSTAT": "0", "PAC": "0", "ROT": "-128", "IMO": "0", "NAME": "RPA03", "CALLSIGN": "PD5102", "TYPE": "55", "DEVICE": "1", "A": "8", "B": "10", "C": "3", "D": "2", "DRAUGHT": "15", "DEST": "PATROL", "ETA": "1596", "AISVER": "0"}, {"MMSI": "246538000", "TIME": "1302514282", "LONGITUDE": "2752877", "LATITUDE": "31476019", "COG": "2632", "SOG": "0", "HEADING": "511", "NAVSTAT": "0", "PAC": "0", "ROT": "-128", "IMO": "7700180", "NAME": "SIRIUS", "CALLSIGN": "PBRW", "TYPE": "52", "DEVICE": "1", "A": "6", "B": "20", "C": "3", "D": "5", "DRAUGHT": "48", "DEST": "IJMUIDEN", "ETA": "849920", "AISVER": "0"}]'
-        cls.messagesdata = json.loads(rawmessages)
-        cls.firstmessage = cls.messagesdata[0]
+        response = {
+            '/empty': '[]',
+            '/bad': '''[
+    {
+        "ERROR": true,
+        "USERNAME": "username",
+        "FORMAT": "AIS",
+        "RECORDS": 2,
+        "ERROR_MESSAGE": "Some error message"
+    }]
+''',
+            '/good': '''[
+    {
+        "ERROR": false,
+        "USERNAME": "username",
+        "FORMAT": "AIS",
+        "RECORDS": 2
+    },
+    [
+        {
+            "MMSI": 232003233,
+            "TIME": "1567068530",
+            "LONGITUDE": -1810742,
+            "LATITUDE": 32069976,
+            "COG": 1,
+            "SOG": 0,
+            "HEADING": 171,
+            "ROT": 0,
+            "NAVSTAT": 0,
+            "IMO": 8914685,
+            "NAME": "SVITZER MERCIA",
+            "CALLSIGN": "MMJY5",
+            "TYPE": 52,
+            "A": 20,
+            "B": 12,
+            "C": 5,
+            "D": 5,
+            "DRAUGHT": 54,
+            "DEST": "LIVERPOOL TUG OPS",
+            "ETA": 582144
+        },
+        {
+            "MMSI": 257173700,
+            "TIME": "1567068508",
+            "LONGITUDE": 6284011,
+            "LATITUDE": 35548940,
+            "COG": 3301,
+            "SOG": 0,
+            "HEADING": 13,
+            "ROT": 0,
+            "NAVSTAT": 5,
+            "IMO": 0,
+            "NAME": "TUROY",
+            "CALLSIGN": "LJMV",
+            "TYPE": 69,
+            "A": 7,
+            "B": 7,
+            "C": 2,
+            "D": 3,
+            "DRAUGHT": 0,
+            "DEST": "",
+            "ETA": 67649
+        }
+    ]]
+''',
+        }
+        cls.messagesdata = json.loads(response['/good'])
+        cls.firstmessage = cls.messagesdata[1][0]
 
         class ServeAisData(BaseHTTPRequestHandler):
             def do_GET(self):
+                path = self.path.split('?')[0]
+
                 self.send_response(200)
                 self.end_headers()
-                gzip_bytes = gzip.compress(rawmessages.encode('utf-8'))
+                gzip_bytes = gzip.compress(response[path].encode('utf-8'))
                 self.wfile.write(gzip_bytes)
 
         cls.address = 'localhost'
@@ -39,23 +106,22 @@ class ExtractDataTestCase(test.SimpleTestCase):
 
     def test_extract_infos(self):
         infos: Infos = Infos(
-            mmsi='244070156',
-            imo='0',
-            callsign='',
-            name='RPA03',
-            ship_type=55,
-            dim_bow=8,
-            dim_stern=10,
-            dim_port=3,
-            dim_starboard=2,
+            mmsi=232003233,
+            imo=8914685,
+            callsign='MMJY5',
+            name='SVITZER MERCIA',
+            ship_type=52,
+            dim_bow=20,
+            dim_stern=12,
+            dim_port=5,
+            dim_starboard=5,
             eta=None,
-            draught=1.5,
-            destination='PATROL'
+            draught=5.4,
+            destination='LIVERPOOL TUG OPS'
         )
 
         extracted_infos: Infos = aishubapi._extract_infos(self.firstmessage)
 
-        self.assertEqual(infos, extracted_infos)
         self.assertEqual(infos.mmsi, extracted_infos.mmsi)
         self.assertEqual(infos.imo, extracted_infos.imo)
         self.assertEqual(infos.callsign, extracted_infos.callsign)
@@ -69,23 +135,24 @@ class ExtractDataTestCase(test.SimpleTestCase):
         self.assertEqual(infos.draught, extracted_infos.draught)
         self.assertEqual(infos.destination, extracted_infos.destination)
 
+        self.assertEqual(infos, extracted_infos)
+
     def test_extract_position(self):
         position: Position = Position(
-            mmsi='244070156',
-            time=datetime(2011, 4, 11, 9, 31, 35, tzinfo=timezone.utc),
-            point=Point(4.854045, 51.819935),
-            cog=151.3,
-            sog=4.0,
-            heading=511,
-            pac=True,
-            rot=-128,
+            mmsi=232003233,
+            time=datetime(2019, 8, 29, 8, 48, 50, tzinfo=timezone.utc),
+            point=Point(-3.017903, 53.44996),
+            cog=0.1,
+            sog=0,
+            heading=171,
+            pac=False,
+            rot=0,
             navstat=0
         )
 
         extracted_position: Position = aishubapi._extract_position(
             self.firstmessage)
 
-        self.assertEqual(position, extracted_position)
         self.assertEqual(position.mmsi, extracted_position.mmsi)
         self.assertEqual(position.time, extracted_position.time)
         self.assertEqual(position.point, extracted_position.point)
@@ -96,6 +163,8 @@ class ExtractDataTestCase(test.SimpleTestCase):
         self.assertEqual(position.rot, extracted_position.rot)
         self.assertEqual(position.navstat, extracted_position.navstat)
 
+        self.assertEqual(position, extracted_position)
+
     @unittest.skip
     def test_extract_infos_position(self):
         infos_dict, position_dict = aishubapi._extract_infos_position(
@@ -103,6 +172,17 @@ class ExtractDataTestCase(test.SimpleTestCase):
         # print(position_dict['244070156'].point)
 
     def test_fetch_last_data(self):
-        aishubapi.URL = 'http://{0}:{1}'.format(self.address, self.port)
+
+        base_address = 'http://{0}:{1}'.format(self.address, self.port)
+
+        with self.assertRaises(aishubapi.AisHubError):
+            aishubapi.URL = '{0}/{1}'.format(base_address, 'empty')
+            fetched_data = aishubapi._fetch_last_data()
+
+        with self.assertRaises(aishubapi.AisHubError):
+            aishubapi.URL = '{0}/{1}'.format(base_address, 'bad')
+            fetched_data = aishubapi._fetch_last_data()
+
+        aishubapi.URL = '{0}/{1}'.format(base_address, 'good')
         fetched_data = aishubapi._fetch_last_data()
-        self.assertEqual(self.messagesdata, fetched_data)
+        self.assertEqual(self.messagesdata[1], fetched_data)

@@ -11,11 +11,20 @@ from io import BytesIO
 from enum import Flag, IntFlag
 from datetime import datetime, timezone
 
-
 from django.contrib.gis.geos import Point
 
 from aisreceiver.aismessage import Infos, Position, infos_keys, position_keys
 from aisreceiver.buffer import buffer_lock, infos_buffer, position_buffer
+
+import logging
+from logformat import StyleAdapter
+
+logger = StyleAdapter(logging.getLogger(__name__))
+
+
+class AisHubError(Exception):
+    """Raised when an error occurred while trying to get last data"""
+    pass
 
 
 class Format(IntFlag):
@@ -47,7 +56,7 @@ output = Output.JSON
 compression = Compression.GZIP
 
 parameters = {
-    'username': '',
+    'username': 'AH_2575_E34F276C',
     'format': format_.value,
     'output': output.value,
     'compress': compression.value,
@@ -64,7 +73,7 @@ parameters = {
 
 def _fetch_last_data() -> List[Dict[str, str]]:
     """Fetch last data via AisHubAPI"""
-    data = {}
+    data = []
     if compression != Compression.GZIP:
         raise Exception(f"{compression} compression not supported yet,"
                         " please use another compression method.")
@@ -76,11 +85,18 @@ def _fetch_last_data() -> List[Dict[str, str]]:
         gz = gzip.GzipFile(fileobj=BytesIO(response.content))
         data = json.loads(gz.read())
     except Exception as err:
-        # TODO: log error
-        print('Error when trying to retrieve AisHub last data:', err,
-              file=sys.stderr)
+        logger.error('Error when trying to retrieve AisHub last data: {}', err)
 
-    return data
+    if len(data) < 1:
+        raise AisHubError('Failed to fetch AisHub data properly')
+    if data[0]['ERROR']:
+        raise AisHubError(
+            'ERROR_MESSAGE: {0}'.format(data[0]['ERROR_MESSAGE'])
+        )
+    if len(data) < 2:
+        raise AisHubError('Failed to fetch AisHub data properly: no data')
+
+    return data[1]
 
 
 def _extract_infos(message: Dict[str, str]) -> Infos:
@@ -93,13 +109,13 @@ def _extract_infos(message: Dict[str, str]) -> Infos:
     tmp_dict = {}
     for k, v in message.items():
         if k == 'MMSI':
-            tmp_dict['mmsi'] = v
+            tmp_dict['mmsi'] = int(v)
         elif k == 'IMO':
-            tmp_dict['imo'] = v
+            tmp_dict['imo'] = int(v)
         elif k == 'NAME':
-            tmp_dict['name'] = v
-        elif k == 'DEST':
-            tmp_dict['destination'] = v
+            tmp_dict['name'] = str(v)
+        elif k == 'CALLSIGN':
+            tmp_dict['callsign'] = str(v)
         elif k == 'TYPE':
             tmp_dict['ship_type'] = int(v)
         elif k == 'A':
@@ -112,6 +128,8 @@ def _extract_infos(message: Dict[str, str]) -> Infos:
             tmp_dict['dim_starboard'] = int(v)
         elif k == 'DRAUGHT':
             tmp_dict['draught'] = float(v)/10
+        elif k == 'DEST':
+            tmp_dict['destination'] = str(v)
         elif k == 'ETA':
             # TODO: understand ETA format
             tmp_dict['eta'] = None
@@ -130,15 +148,15 @@ def _extract_position(message: Dict[str, str]) -> Position:
     lat, lon = 91, 181
     for k, v in message.items():
         if k == 'MMSI':
-            tmp_dict['mmsi'] = v
+            tmp_dict['mmsi'] = int(v)
         elif k == 'TIME':
             tmp_dict['time'] = datetime.fromtimestamp(int(v), timezone.utc)
         elif k == 'LATITUDE':
-            lat = int(v)/600000
+            lat = round(int(v)/600000, 6)
             if lat**2 > 90**2:
                 tmp_dict['valid_position'] = False
         elif k == 'LONGITUDE':
-            lon = int(v)/600000
+            lon = round(int(v)/600000, 6)
             if lon**2 > 180**2:
                 tmp_dict['valid_position'] = False
         elif k == 'COG':
@@ -175,14 +193,12 @@ def _extract_infos_position(data: List[Dict[str, str]]
             infos_dict[mmsi] = infos
             position_dict[mmsi] = position
         except KeyError as err:
-            # TODO: log error
-            print('Error when extracting data: missing MMSI field ?', str(err),
-                  file=sys.stderr)
+            logger.error('Error when extracting data: missing MMSI field ? {}',
+                         str(err))
         except TypeError as err:
-            # TODO: log error
-            print('Error when extracting data: '
-                  'missing required fields for Infos or Position ?', str(err),
-                  file=sys.stderr)
+            logger.error('Error when extracting data: '
+                         'missing required fields for Infos or Position ? {}',
+                         str(err))
 
     return (infos_dict, position_dict,)
 
@@ -195,12 +211,22 @@ def api_access() -> None:
     """Fetch data from AisHub at regular interval and store it in the buffers"""
     with should_stop:
         while run:
-            data = _fetch_last_data()
-            infos_dict, position_dict = _extract_infos_position(data)
+            try:
+                logger.debug("starting api request")
+                data = _fetch_last_data()
+                logger.debug("data fetched")
+                infos_dict, position_dict = _extract_infos_position(data)
+                logger.debug("infos and position extracted")
 
-            with buffer_lock:
-                infos_buffer.update(infos_dict)
-                position_buffer.update(position_dict)
+                with buffer_lock:
+                    infos_buffer.update(infos_dict)
+                    position_buffer.update(position_dict)
+                    logger.info("buffers updated: "
+                                "{} unique boats, {} positions",
+                                len(infos_buffer), len(position_buffer))
+
+            except AisHubError as err:
+                logger.error(err)
 
             should_stop.wait(timeout=_POSITIONS_UPDATE_WINDOW)
 
