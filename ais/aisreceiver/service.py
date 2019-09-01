@@ -7,9 +7,10 @@ import json
 from core.models import Message
 from .endpoints import aishubapi
 from .aismessage import Infos, Position, default_infos, infos_keys
-from .buffer import position_buffer, infos_buffer, buffer_lock
+# from .buffer import position_buffer, infos_buffer, buffer_lock
 from .app_settings import POSTGRES_UPDATE_WINDOW
 from .redisclient import redis_client, pipeline_client
+from .serializers.json import redis_object_hook
 
 import logging
 from logformat import StyleAdapter
@@ -23,13 +24,8 @@ run = True
 def start() -> None:
 
     logger.info("==== Starting AIS service ====")
-    # logger.debug("Just a test")
-    # 1) init infos_buffer
-    with buffer_lock:
-        init_infos_buffer()
 
-    logger.info("infos_buffer initialized")
-
+    # 1) init redis
     init_redis()
     logger.info("redis initialized")
 
@@ -41,22 +37,15 @@ def start() -> None:
     sleep(10)  # give endpoints time to start for immediate update
 
     # 3) every X minutes :
-    #    - update database from position_buffer and infos_buffer
-    #    - flush positions_buffer
-
+    #    - update database from redis
     while run:
 
         logger.debug("starting database update")
-        with buffer_lock:
-            logger.debug("buffer_lock acquired")
-            messages_before = Message.objects.count()
-            messages = make_bulk_messages()
-            messages_len = len(messages)
-            Message.objects.bulk_create(messages, ignore_conflicts=True)
-            messages_after = Message.objects.count()
-
-            position_buffer.clear()
-            logger.debug("position_buffer cleared")
+        messages_before = Message.objects.count()
+        messages = make_bulk_messages()
+        messages_len = len(messages)
+        Message.objects.bulk_create(messages, ignore_conflicts=True)
+        messages_after = Message.objects.count()
 
         logger.info('database updated')
 
@@ -73,18 +62,6 @@ def stop() -> None:
     pass
 
 
-def init_infos_buffer() -> None:
-    """Initialises infos_buffer with existing corresponding Message fields from
-    the database"""
-
-    last_infos = (Message.objects.distinct('mmsi')
-                  .order_by('mmsi', '-time')
-                  .values(*infos_keys))
-    infos_buffer.clear()
-    for infos in last_infos:
-        infos_buffer[infos['mmsi']] = Infos(**infos)
-
-
 def init_redis() -> None:
     """Initialises redis with existing corresponding Message fields from
     the database"""
@@ -99,34 +76,36 @@ def init_redis() -> None:
 
 def make_bulk_messages() -> List[Message]:
     """Creates a message list for following batch processing to the database
-    based on infos_dict and positions_dict"""
+    based on redis 'infos:' and 'position:'"""
 
     messages = []
+
+    # TODO: use scan instead MAYBE, check performance before
+    infos_keys_redis = redis_client.keys('infos:*')
+    position_keys_redis = redis_client.keys('position:*')
+
+    infos_redis = redis_client.mget(infos_keys_redis)
+    position_redis = redis_client.mget(position_keys_redis)
+
+    # TODO: are those buffers really needed ? extra work ?
+    mmsi_start = len('infos:')
+    infos_buffer = {
+        k[mmsi_start:]: json.loads(v, object_hook=redis_object_hook)
+        for k, v in zip(infos_keys_redis, infos_redis)
+    }
+    mmsi_start = len('position:')
+    position_buffer = {
+        k[mmsi_start:]: json.loads(v, object_hook=redis_object_hook)
+        for k, v in zip(position_keys_redis, position_redis)
+    }
 
     for mmsi, position in position_buffer.items():
         infos = mmsi in infos_buffer and infos_buffer[mmsi] or default_infos
         message = Message(
-            mmsi=mmsi,
-            time=position.time,
-            point=position.point,
-            cog=position.cog,
-            sog=position.sog,
-            heading=position.heading,
-            pac=position.pac,
-            rot=position.rot,
-            navstat=position.navstat,
-
-            imo=infos.imo,
-            callsign=infos.callsign,
-            name=infos.name,
-            ship_type=infos.ship_type,
-            dim_bow=infos.dim_bow,
-            dim_stern=infos.dim_stern,
-            dim_port=infos.dim_port,
-            dim_starboard=infos.dim_starboard,
-            eta=infos.eta,
-            draught=infos.draught,
-            destination=infos.destination
+            **{
+                **infos,
+                **position
+            }
         )
         messages.append(message)
 

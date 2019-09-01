@@ -15,9 +15,9 @@ from django.contrib.gis.geos import Point
 import redis
 
 from aisreceiver.aismessage import Infos, Position, infos_keys, position_keys
-from aisreceiver.buffer import buffer_lock, infos_buffer, position_buffer
 from aisreceiver.app_settings import POSITION_EXPIRE_TTL, AISHUBAPI_UPDATE_WINDOW
 from aisreceiver.redisclient import redis_client, pipeline_client
+from aisreceiver.serializers.json import default_redis_encoder
 
 import logging
 from logformat import StyleAdapter
@@ -181,7 +181,8 @@ def _extract_position(message: Dict[str, str]) -> Position:
 def _extract_infos_position(data: List[Dict[str, str]]
                             ) -> Tuple[Dict[str, Infos], Dict[str, Position]]:
     """Extract Infos and Position from data and put those in a dict indexed by
-    mmsi. This make it ready to consume for the buffer dictionaries"""
+    mmsi. 
+    TODO: use standard dict instead of named tuple"""
     infos_dict, position_dict = {}, {}
 
     for message in data:
@@ -210,7 +211,7 @@ should_stop = threading.Condition()
 
 
 def api_access() -> None:
-    """Fetch data from AisHub at regular interval and store it in the buffers"""
+    """Fetch data from AisHub at regular interval and store it in redis"""
     with should_stop:
         while run:
             try:
@@ -225,14 +226,6 @@ def api_access() -> None:
                 infos_dict, position_dict = _extract_infos_position(data)
                 logger.debug("infos and position extracted")
 
-                with buffer_lock:
-                    logger.debug("starting buffer update")
-                    infos_buffer.update(infos_dict)
-                    position_buffer.update(position_dict)
-                    logger.info("buffers updated")
-                    logger.debug("{} unique boats, {} positions",
-                                 len(infos_buffer), len(position_buffer))
-
                 logger.debug("starting redis update")
                 for k, v in infos_dict.items():
                     pipeline_client.set(f'infos:{k}', json.dumps(v._asdict()))
@@ -241,7 +234,7 @@ def api_access() -> None:
                     expire = POSITION_EXPIRE_TTL - int(delta)
                     pipeline_client.set(
                         f'position:{k}',
-                        json.dumps(v._asdict(), default=str),
+                        json.dumps(v._asdict(), default=default_redis_encoder),
                         ex=expire
                     )
                 pipeline_client.execute()
