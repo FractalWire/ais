@@ -5,12 +5,12 @@ from time import sleep
 import json
 
 from core.models import Message
+from core.serializers.json import redis_object_hook
+
 from .endpoints import aishubapi
 from .aismessage import Infos, Position, default_infos, infos_keys
-# from .buffer import position_buffer, infos_buffer, buffer_lock
 from .app_settings import POSTGRES_UPDATE_WINDOW
 from .redisclient import redis_client, pipeline_client
-from .serializers.json import redis_object_hook
 
 import logging
 from logformat import StyleAdapter
@@ -40,14 +40,15 @@ def start() -> None:
     #    - update database from redis
     while run:
 
-        logger.debug("starting database update")
         messages_before = Message.objects.count()
+        logger.debug("starting database update")
         messages = make_bulk_messages()
         messages_len = len(messages)
+        logger.debug('starting bulk_create')
         Message.objects.bulk_create(messages, ignore_conflicts=True)
-        messages_after = Message.objects.count()
 
         logger.info('database updated')
+        messages_after = Message.objects.count()
 
         # TODO: Maybe only useful in DEBUG mode...
         new_messages = messages_after-messages_before
@@ -80,6 +81,7 @@ def make_bulk_messages() -> List[Message]:
 
     messages = []
 
+    logger.debug('fetching data from redis')
     # TODO: use scan instead MAYBE, check performance before
     infos_keys_redis = redis_client.keys('infos:*')
     position_keys_redis = redis_client.keys('position:*')
@@ -87,6 +89,7 @@ def make_bulk_messages() -> List[Message]:
     infos_redis = redis_client.mget(infos_keys_redis)
     position_redis = redis_client.mget(position_keys_redis)
 
+    logger.debug('redis data serialization')
     # TODO: are those buffers really needed ? extra work ?
     mmsi_start = len('infos:')
     infos_buffer = {
@@ -99,6 +102,7 @@ def make_bulk_messages() -> List[Message]:
         for k, v in zip(position_keys_redis, position_redis)
     }
 
+    logger.debug('making bulk_messages')
     for mmsi, position in position_buffer.items():
         infos = mmsi in infos_buffer and infos_buffer[mmsi] or default_infos
         message = Message(

@@ -14,10 +14,11 @@ from datetime import datetime, timezone
 from django.contrib.gis.geos import Point
 import redis
 
+from core.serializers.json import default_redis_encoder
+
 from aisreceiver.aismessage import Infos, Position, infos_keys, position_keys
 from aisreceiver.app_settings import POSITION_EXPIRE_TTL, AISHUBAPI_UPDATE_WINDOW
 from aisreceiver.redisclient import redis_client, pipeline_client
-from aisreceiver.serializers.json import default_redis_encoder
 
 import logging
 from logformat import StyleAdapter
@@ -181,7 +182,7 @@ def _extract_position(message: Dict[str, str]) -> Position:
 def _extract_infos_position(data: List[Dict[str, str]]
                             ) -> Tuple[Dict[str, Infos], Dict[str, Position]]:
     """Extract Infos and Position from data and put those in a dict indexed by
-    mmsi. 
+    mmsi.
     TODO: use standard dict instead of named tuple"""
     infos_dict, position_dict = {}, {}
 
