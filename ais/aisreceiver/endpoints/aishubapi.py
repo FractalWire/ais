@@ -15,6 +15,7 @@ from django.contrib.gis.geos import Point
 
 from aisreceiver.aismessage import Infos, Position, infos_keys, position_keys
 from aisreceiver.buffer import buffer_lock, infos_buffer, position_buffer
+from aisreceiver.app_settings import POSITION_EXPIRE_TTL, AISHUBAPI_UPDATE_WINDOW
 
 import logging
 from logformat import StyleAdapter
@@ -44,10 +45,6 @@ class Compression(IntFlag):
     GZIP = 2
     BZIP2 = 3
 
-
-# TODO: Put that in a config file maybe
-# minimum value: 1 minute. AisHub does not allowed more frequent update
-_POSITIONS_UPDATE_WINDOW = 5 * 60  # in seconds
 
 URL = 'http://data.aishub.net/ws.php?'
 
@@ -228,7 +225,7 @@ def api_access() -> None:
             except AisHubError as err:
                 logger.error(err)
 
-            should_stop.wait(timeout=_POSITIONS_UPDATE_WINDOW)
+            should_stop.wait(timeout=AISHUBAPI_UPDATE_WINDOW)
 
 
 service_thread = threading.Thread(target=api_access)

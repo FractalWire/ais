@@ -7,15 +7,12 @@ from core.models import Message
 from .endpoints import aishubapi
 from .aismessage import Infos, Position, default_infos, infos_keys
 from .buffer import position_buffer, infos_buffer, buffer_lock
+from .app_settings import POSTGRES_UPDATE_WINDOW
 
 import logging
 from logformat import StyleAdapter
 
 logger = StyleAdapter(logging.getLogger(__name__))
-
-# Update interval to store the latest position received
-# TODO: put that in a config file maybe
-MESSAGE_UPDATE_WINDOW = 5*60  # in seconds
 
 
 run = True
@@ -61,6 +58,7 @@ def start() -> None:
                     new_messages, messages_len-new_messages)
 
         sleep(MESSAGE_UPDATE_WINDOW)
+        sleep(POSTGRES_UPDATE_WINDOW)
 
 
 def stop() -> None:
