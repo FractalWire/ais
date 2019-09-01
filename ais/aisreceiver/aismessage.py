@@ -21,11 +21,6 @@ class Infos(NamedTuple):
     draught: float = 0.
     destination: str = ''
 
-    def is_default(self) -> bool:
-        """Check if the instance has default parameters
-        TODO: Enhanced that to avoid repeated creation of a default object"""
-        return self[1:] == Infos("DEFAULT")[1:]
-
 
 default_infos = Infos('DEFAULT')
 infos_keys = default_infos._asdict().keys()

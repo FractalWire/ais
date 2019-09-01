@@ -15,7 +15,7 @@ handlers:
         level: INFO
     aisreceiver:
         class: logging.FileHandler
-        formatter: default
+        formatter: brief
         filename: logs/aisreceiver.log
         mode: w
         level: DEBUG
