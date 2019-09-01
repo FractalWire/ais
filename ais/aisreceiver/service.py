@@ -2,12 +2,14 @@
 from __future__ import annotations
 from typing import List
 from time import sleep
+import json
 
 from core.models import Message
 from .endpoints import aishubapi
 from .aismessage import Infos, Position, default_infos, infos_keys
 from .buffer import position_buffer, infos_buffer, buffer_lock
 from .app_settings import POSTGRES_UPDATE_WINDOW
+from .redisclient import redis_client, pipeline_client
 
 import logging
 from logformat import StyleAdapter
@@ -28,9 +30,13 @@ def start() -> None:
 
     logger.info("infos_buffer initialized")
 
+    init_redis()
+    logger.info("redis initialized")
+
     # 2) launch endpoint listeners
     aishubapi.start()
     logger.info("aishubapi endpoints started")
+    logger.info("==============================")
 
     sleep(10)  # give endpoints time to start for immediate update
 
@@ -52,12 +58,14 @@ def start() -> None:
             position_buffer.clear()
             logger.debug("position_buffer cleared")
 
+        logger.info('database updated')
+
         # TODO: Maybe only useful in DEBUG mode...
         new_messages = messages_after-messages_before
-        logger.info("{} new messages added to the database, {} discarded",
-                    new_messages, messages_len-new_messages)
+        logger.debug("{} new messages added to the database, {} discarded",
+                     new_messages, messages_len-new_messages)
 
-        sleep(MESSAGE_UPDATE_WINDOW)
+        logger.info("------------------------------")
         sleep(POSTGRES_UPDATE_WINDOW)
 
 
@@ -66,7 +74,7 @@ def stop() -> None:
 
 
 def init_infos_buffer() -> None:
-    """Initialises infos_buffer with existing corresponding Message fields from 
+    """Initialises infos_buffer with existing corresponding Message fields from
     the database"""
 
     last_infos = (Message.objects.distinct('mmsi')
@@ -75,6 +83,18 @@ def init_infos_buffer() -> None:
     infos_buffer.clear()
     for infos in last_infos:
         infos_buffer[infos['mmsi']] = Infos(**infos)
+
+
+def init_redis() -> None:
+    """Initialises redis with existing corresponding Message fields from
+    the database"""
+    last_infos = (Message.objects.distinct('mmsi')
+                  .order_by('mmsi', '-time')
+                  .values(*infos_keys))
+    redis_client.flushdb()
+    for infos in last_infos:
+        pipeline_client.set(f'infos:{infos["mmsi"]}', json.dumps(infos))
+    pipeline_client.execute()
 
 
 def make_bulk_messages() -> List[Message]:

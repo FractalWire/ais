@@ -130,3 +130,8 @@ STATIC_URL = '/static/'
 
 with open("logconfig.yml") as f:
     LOGGING = yaml.load(f, Loader=yaml.FullLoader)
+
+REDIS_CONF = {
+    'host': 'localhost',
+    'port': 6379,
+}

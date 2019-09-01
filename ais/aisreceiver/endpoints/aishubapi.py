@@ -12,10 +12,12 @@ from enum import Flag, IntFlag
 from datetime import datetime, timezone
 
 from django.contrib.gis.geos import Point
+import redis
 
 from aisreceiver.aismessage import Infos, Position, infos_keys, position_keys
 from aisreceiver.buffer import buffer_lock, infos_buffer, position_buffer
 from aisreceiver.app_settings import POSITION_EXPIRE_TTL, AISHUBAPI_UPDATE_WINDOW
+from aisreceiver.redisclient import redis_client, pipeline_client
 
 import logging
 from logformat import StyleAdapter
@@ -185,13 +187,16 @@ def _extract_infos_position(data: List[Dict[str, str]]
     for message in data:
         try:
             mmsi = message['MMSI']
+        except KeyError as err:
+            logger.error('Error when extracting data: missing MMSI field ? {}',
+                         str(err))
+            continue
+
+        try:
             infos = _extract_infos(message)
             position = _extract_position(message)
             infos_dict[mmsi] = infos
             position_dict[mmsi] = position
-        except KeyError as err:
-            logger.error('Error when extracting data: missing MMSI field ? {}',
-                         str(err))
         except TypeError as err:
             logger.error('Error when extracting data: '
                          'missing required fields for Infos or Position ? {}',
@@ -212,18 +217,38 @@ def api_access() -> None:
                 logger.debug("starting api request")
                 data = _fetch_last_data()
                 logger.debug("data fetched")
+            except AisHubError as err:
+                logger.error(err)
+                data = []
+
+            if data:
                 infos_dict, position_dict = _extract_infos_position(data)
                 logger.debug("infos and position extracted")
 
                 with buffer_lock:
+                    logger.debug("starting buffer update")
                     infos_buffer.update(infos_dict)
                     position_buffer.update(position_dict)
-                    logger.info("buffers updated: "
-                                "{} unique boats, {} positions",
-                                len(infos_buffer), len(position_buffer))
+                    logger.info("buffers updated")
+                    logger.debug("{} unique boats, {} positions",
+                                 len(infos_buffer), len(position_buffer))
 
-            except AisHubError as err:
-                logger.error(err)
+                logger.debug("starting redis update")
+                for k, v in infos_dict.items():
+                    pipeline_client.set(f'infos:{k}', json.dumps(v._asdict()))
+                for k, v in position_dict.items():
+                    delta = (v.time-datetime.now(timezone.utc)).total_seconds()
+                    expire = POSITION_EXPIRE_TTL - int(delta)
+                    pipeline_client.set(
+                        f'position:{k}',
+                        json.dumps(v._asdict(), default=str),
+                        ex=expire
+                    )
+                pipeline_client.execute()
+                logger.info("redis updated")
+                logger.debug("{} unique boats, {} positions",
+                             len(redis_client.keys('infos*')),
+                             len(redis_client.keys('position*')))
 
             should_stop.wait(timeout=AISHUBAPI_UPDATE_WINDOW)
 
@@ -237,7 +262,7 @@ def start() -> None:
 
 
 def stop() -> None:
-    """Stop aishubapiservice"""
+    """Stop aishubapi service"""
     run = False
     with should_stop:
         should_stop.notify_all()
