@@ -1,7 +1,7 @@
 """This module manages the interaction with AISHub API
 https://www.aishub.net/api"""
 from __future__ import annotations
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Any
 import sys
 import requests
 import gzip
@@ -14,9 +14,9 @@ from datetime import datetime, timezone
 from django.contrib.gis.geos import Point
 import redis
 
-from core.serializers.json import default_redis_encoder
+from core.serializers.json import default_redis_encoder, default_redis_key_encoder
+from core.models import Message
 
-from aisreceiver.aismessage import Infos, Position, infos_keys, position_keys
 from aisreceiver.app_settings import POSITION_EXPIRE_TTL, AISHUBAPI_UPDATE_WINDOW
 from aisreceiver.redisclient import redis_client, pipeline_client
 
@@ -71,7 +71,7 @@ parameters = {
 }
 
 
-def _fetch_last_data() -> List[Dict[str, str]]:
+def fetch_last_data() -> List[Dict[str, str]]:
     """Fetch last data via AisHubAPI"""
     data = []
     if compression != Compression.GZIP:
@@ -99,112 +99,91 @@ def _fetch_last_data() -> List[Dict[str, str]]:
     return data[1]
 
 
-def _extract_infos(message: Dict[str, str]) -> Infos:
-    """Extract infos data from a raw message and cast it to output an
-    Infos object"""
+def parse_data(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Parse incoming data to match message format"""
+
     if format_ != Format.AIS_ENCODING:
         raise Exception(f"{format_} format not implemented yet,"
                         " please use another format.")
-
-    tmp_dict = {}
-    for k, v in message.items():
-        if k == 'MMSI':
-            tmp_dict['mmsi'] = int(v)
-        elif k == 'IMO':
-            tmp_dict['imo'] = int(v)
-        elif k == 'NAME':
-            tmp_dict['name'] = str(v)
-        elif k == 'CALLSIGN':
-            tmp_dict['callsign'] = str(v)
-        elif k == 'TYPE':
-            tmp_dict['ship_type'] = int(v)
-        elif k == 'A':
-            tmp_dict['dim_bow'] = int(v)
-        elif k == 'B':
-            tmp_dict['dim_stern'] = int(v)
-        elif k == 'C':
-            tmp_dict['dim_port'] = int(v)
-        elif k == 'D':
-            tmp_dict['dim_starboard'] = int(v)
-        elif k == 'DRAUGHT':
-            tmp_dict['draught'] = float(v)/10
-        elif k == 'DEST':
-            tmp_dict['destination'] = str(v)
-        elif k == 'ETA':
-            # TODO: understand ETA format
-            tmp_dict['eta'] = None
-
-    return Infos(**tmp_dict)
-
-
-def _extract_position(message: Dict[str, str]) -> Position:
-    """Extract position data from a raw message and cast it to output a
-    Position object"""
-    if format_ != Format.AIS_ENCODING:
-        raise Exception(f"{format_} format not implemented yet,"
-                        " please use another format.")
-
-    tmp_dict = {}
+    message = {}
     lat, lon = 91, 181
-    for k, v in message.items():
+    for k, v in data.items():
         if k == 'MMSI':
-            tmp_dict['mmsi'] = int(v)
+            message['mmsi'] = int(v)
         elif k == 'TIME':
-            tmp_dict['time'] = datetime.fromtimestamp(int(v), timezone.utc)
+            message['time'] = datetime.fromtimestamp(int(v), timezone.utc)
         elif k == 'LATITUDE':
             lat = round(int(v)/600000, 6)
             if lat**2 > 90**2:
-                tmp_dict['valid_position'] = False
+                message['valid_position'] = False
         elif k == 'LONGITUDE':
             lon = round(int(v)/600000, 6)
             if lon**2 > 180**2:
-                tmp_dict['valid_position'] = False
+                message['valid_position'] = False
         elif k == 'COG':
-            tmp_dict['cog'] = int(v)/10
+            message['cog'] = int(v)/10
         elif k == 'SOG':
-            tmp_dict['sog'] = int(v)/10
+            message['sog'] = int(v)/10
         elif k == 'HEADING':
-            tmp_dict['heading'] = int(v)
+            message['heading'] = int(v)
         elif k == 'PAC':
-            tmp_dict['pac'] = bool(v)
+            message['pac'] = bool(v)
         elif k == 'ROT':
             # TODO: Transform that value in a more comprehensive one (deg/min
             # for example)
-            tmp_dict['rot'] = int(v)
+            message['rot'] = int(v)
         elif k == 'NAVSTAT':
-            tmp_dict['navstat'] = int(v)
+            message['navstat'] = int(v)
 
-    tmp_dict['point'] = Point(lon, lat)
+        elif k == 'IMO':
+            message['imo'] = int(v)
+        elif k == 'NAME':
+            message['name'] = str(v)
+        elif k == 'CALLSIGN':
+            message['callsign'] = str(v)
+        elif k == 'TYPE':
+            message['ship_type'] = int(v)
+        elif k == 'A':
+            message['dim_bow'] = int(v)
+        elif k == 'B':
+            message['dim_stern'] = int(v)
+        elif k == 'C':
+            message['dim_port'] = int(v)
+        elif k == 'D':
+            message['dim_starboard'] = int(v)
+        elif k == 'DRAUGHT':
+            message['draught'] = float(v)/10
+        elif k == 'DEST':
+            message['destination'] = str(v)
+        elif k == 'ETA':
+            # TODO: understand ETA format
+            message['eta'] = None
 
-    return Position(**tmp_dict)
+    if 'valid_position' in message and not message['valid_position']:
+        message['point'] = None
+    else:
+        message['point'] = Point(lon, lat)
+        message['valid_position'] = True
+
+    return message
 
 
-def _extract_infos_position(data: List[Dict[str, str]]
-                            ) -> Tuple[Dict[str, Infos], Dict[str, Position]]:
-    """Extract Infos and Position from data and put those in a dict indexed by
-    mmsi.
-    TODO: use standard dict instead of named tuple"""
-    infos_dict, position_dict = {}, {}
+def extract_messages(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Extract raw messages from data and put those in list"""
 
-    for message in data:
-        try:
-            mmsi = message['MMSI']
-        except KeyError as err:
-            logger.error('Error when extracting data: missing MMSI field ? {}',
-                         str(err))
+    # TODO: put that out of a function for future use in a loop
+    required_fields = Message.required_fields()
+
+    message_list = []
+    for d in data:
+        message = parse_data(d)
+        if not all(f in message for f in required_fields):
+            logger.error('Error when parsing data: missing field {}', f)
             continue
 
-        try:
-            infos = _extract_infos(message)
-            position = _extract_position(message)
-            infos_dict[mmsi] = infos
-            position_dict[mmsi] = position
-        except TypeError as err:
-            logger.error('Error when extracting data: '
-                         'missing required fields for Infos or Position ? {}',
-                         str(err))
+        message_list.append(message)
 
-    return (infos_dict, position_dict,)
+    return message_list
 
 
 run = True
@@ -213,36 +192,66 @@ should_stop = threading.Condition()
 
 def api_access() -> None:
     """Fetch data from AisHub at regular interval and store it in redis"""
+
+    # TODO: put those out of a function for future use in a loop
+    required_fields = Message.required_fields()
+    infos_keys = Message.infos_keys()
+    position_keys = Message.position_keys()
+
     with should_stop:
         while run:
+            logger.debug('')
+            logger.debug("starting api request")
             try:
-                logger.debug("starting api request")
-                data = _fetch_last_data()
+                data = fetch_last_data()
                 logger.debug("data fetched")
             except AisHubError as err:
-                logger.error(err)
+                logger.error('{}', err)
                 data = []
 
             if data:
-                infos_dict, position_dict = _extract_infos_position(data)
-                logger.debug("infos and position extracted")
+                messages = extract_messages(data)
+                logger.debug("messages extracted")
 
                 logger.debug("starting redis update")
-                for k, v in infos_dict.items():
-                    pipeline_client.set(f'infos:{k}', json.dumps(v._asdict()))
-                for k, v in position_dict.items():
-                    delta = (v.time-datetime.now(timezone.utc)).total_seconds()
-                    expire = POSITION_EXPIRE_TTL - int(delta)
-                    pipeline_client.set(
-                        f'position:{k}',
-                        json.dumps(v._asdict(), default=default_redis_encoder),
-                        ex=expire
+
+                for m in messages:
+                    # insert m in aismessages
+                    # TODO: get existing keys before that to avoid useless
+                    # serialization
+                    key = ':'.join(
+                        json.dumps(m[f], default=default_redis_key_encoder)
+                        for f in required_fields
                     )
+                    val = json.dumps(m, default=default_redis_encoder)
+                    pipeline_client.hset('aismessages', key, val)
+
+                    # insert m as infos in infos:
+                    key = f'infos:{m["mmsi"]}'
+                    infos = {k: v for k, v in m.items()
+                             if k in infos_keys}
+                    val = json.dumps(infos)
+                    pipeline_client.set(f'infos:{key}', val)
+
+                    # insert m as position in position:
+                    key = f'position:{m["mmsi"]}'
+                    position = {k: v for k, v in m.items()
+                                if k in position_keys}
+                    val = json.dumps(position, default=default_redis_encoder)
+                    delta = (
+                        m['time']-datetime.now(timezone.utc)
+                    ).total_seconds()
+                    expire = POSITION_EXPIRE_TTL - int(delta)
+                    pipeline_client.set(f'position:{key}', val, ex=expire)
+
                 pipeline_client.execute()
-                logger.info("redis updated")
+
+                logger.debug("{} aismessages waiting for postgres",
+                             redis_client.hlen('aismessages'))
                 logger.debug("{} unique boats, {} positions",
-                             len(redis_client.keys('infos*')),
-                             len(redis_client.keys('position*')))
+                             len(redis_client.keys('infos:*')),
+                             len(redis_client.keys('position:*')))
+                logger.info("redis updated")
 
             should_stop.wait(timeout=AISHUBAPI_UPDATE_WINDOW)
 

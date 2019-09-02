@@ -8,7 +8,6 @@ from core.models import Message
 from core.serializers.json import redis_object_hook
 
 from .endpoints import aishubapi
-from .aismessage import Infos, Position, default_infos, infos_keys
 from .app_settings import POSTGRES_UPDATE_WINDOW
 from .redisclient import redis_client, pipeline_client
 
@@ -38,11 +37,15 @@ def start() -> None:
 
     # 3) every X minutes :
     #    - update database from redis
+    #    - flush redis aismessages
     while run:
 
         messages_before = Message.objects.count()
         logger.debug("starting database update")
         messages = make_bulk_messages()
+        # TODO: Need redis lock before that, to avoid potential message loss
+        redis_client.delete('aismessages')
+
         messages_len = len(messages)
         logger.debug('starting bulk_create')
         Message.objects.bulk_create(messages, ignore_conflicts=True)
@@ -68,8 +71,8 @@ def init_redis() -> None:
     the database"""
     last_infos = (Message.objects.distinct('mmsi')
                   .order_by('mmsi', '-time')
-                  .values(*infos_keys))
-    redis_client.flushdb()
+                  .values(*Message.infos_keys()))
+    redis_client.flushdb()  # TODO: probably not needed
     for infos in last_infos:
         pipeline_client.set(f'infos:{infos["mmsi"]}', json.dumps(infos))
     pipeline_client.execute()
@@ -82,34 +85,12 @@ def make_bulk_messages() -> List[Message]:
     messages = []
 
     logger.debug('fetching data from redis')
-    # TODO: use scan instead MAYBE, check performance before
-    infos_keys_redis = redis_client.keys('infos:*')
-    position_keys_redis = redis_client.keys('position:*')
 
-    infos_redis = redis_client.mget(infos_keys_redis)
-    position_redis = redis_client.mget(position_keys_redis)
-
-    logger.debug('redis data serialization')
-    # TODO: are those buffers really needed ? extra work ?
-    mmsi_start = len('infos:')
-    infos_buffer = {
-        k[mmsi_start:]: json.loads(v, object_hook=redis_object_hook)
-        for k, v in zip(infos_keys_redis, infos_redis)
-    }
-    mmsi_start = len('position:')
-    position_buffer = {
-        k[mmsi_start:]: json.loads(v, object_hook=redis_object_hook)
-        for k, v in zip(position_keys_redis, position_redis)
-    }
-
+    messages_redis = redis_client.hgetall('aismessages')
     logger.debug('making bulk_messages')
-    for mmsi, position in position_buffer.items():
-        infos = mmsi in infos_buffer and infos_buffer[mmsi] or default_infos
+    for message_redis in messages_redis.values():
         message = Message(
-            **{
-                **infos,
-                **position
-            }
+            **json.loads(message_redis, object_hook=redis_object_hook)
         )
         messages.append(message)
 

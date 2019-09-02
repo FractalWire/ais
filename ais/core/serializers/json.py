@@ -29,3 +29,12 @@ def default_redis_encoder(o: Any) -> dict[str, Any]:
     if isinstance(o, Point):
         return dict(__point__=True, coords=o.coords)
     return json.JSONEncoder.default(o)
+
+
+def default_redis_key_encoder(o: Any) -> dict[str, Any]:
+    """Default encoder to use for redis key encoding"""
+    if isinstance(o, datetime):
+        return o.timestamp()
+    if isinstance(o, Point):
+        return o.coords
+    return json.JSONEncoder.default(o)
