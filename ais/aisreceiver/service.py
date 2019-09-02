@@ -40,25 +40,7 @@ def start() -> None:
     #    - flush redis aismessages
     while run:
 
-        messages_before = Message.objects.count()
-        logger.debug("starting database update")
-        messages = make_bulk_messages()
-        # TODO: Need redis lock before that, to avoid potential message loss
-        redis_client.delete('aismessages')
-
-        messages_len = len(messages)
-        logger.debug('starting bulk_create')
-        Message.objects.bulk_create(messages, ignore_conflicts=True)
-
-        logger.info('database updated')
-        messages_after = Message.objects.count()
-
-        # TODO: Maybe only useful in DEBUG mode...
-        new_messages = messages_after-messages_before
-        logger.debug("{} new messages added to the database, {} discarded",
-                     new_messages, messages_len-new_messages)
-
-        logger.info("------------------------------")
+        update_db()
         sleep(POSTGRES_UPDATE_WINDOW)
 
 
@@ -95,3 +77,28 @@ def make_bulk_messages() -> List[Message]:
         messages.append(message)
 
     return messages
+
+
+def update_db() -> None:
+    """Update the database using messages stored in redis"""
+    messages_before = Message.objects.count()
+    logger.debug("starting database update")
+    messages = make_bulk_messages()
+    # TODO: Need redis lock before that, to avoid potential message loss
+    # TODO: or simply use TTL with window < TTL < 2*window,
+    # there should be fewer misses and no losses
+    redis_client.delete('aismessages')
+
+    messages_len = len(messages)
+    logger.debug('starting bulk_create')
+    Message.objects.bulk_create(messages, ignore_conflicts=True)
+
+    logger.info('database updated')
+    messages_after = Message.objects.count()
+
+    # TODO: Maybe only useful in DEBUG mode...
+    new_messages = messages_after-messages_before
+    logger.debug("{} new messages added to the database, {} discarded",
+                 new_messages, messages_len-new_messages)
+
+    logger.info("------------------------------")

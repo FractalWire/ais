@@ -1,8 +1,7 @@
 """This module manages the interaction with AISHub API
 https://www.aishub.net/api"""
 from __future__ import annotations
-from typing import List, Dict, Tuple, Any
-import sys
+from typing import List, Dict, Any
 import requests
 import gzip
 import json
@@ -12,7 +11,6 @@ from enum import Flag, IntFlag
 from datetime import datetime, timezone
 
 from django.contrib.gis.geos import Point
-import redis
 
 from core.serializers.json import default_redis_encoder, default_redis_key_encoder
 from core.models import Message
@@ -73,7 +71,7 @@ parameters = {
 
 def fetch_last_data() -> List[Dict[str, str]]:
     """Fetch last data via AisHubAPI"""
-    data = []
+    data: List[Any] = []
     if compression != Compression.GZIP:
         raise Exception(f"{compression} compression not supported yet,"
                         " please use another compression method.")
@@ -105,8 +103,8 @@ def parse_data(data: Dict[str, Any]) -> Dict[str, Any]:
     if format_ != Format.AIS_ENCODING:
         raise Exception(f"{format_} format not implemented yet,"
                         " please use another format.")
-    message = {}
-    lat, lon = 91, 181
+    message: Dict[str, Any] = {}
+    lat, lon = 91.0, 181.0
     for k, v in data.items():
         if k == 'MMSI':
             message['mmsi'] = int(v)
@@ -178,12 +176,74 @@ def extract_messages(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     for d in data:
         message = parse_data(d)
         if not all(f in message for f in required_fields):
-            logger.error('Error when parsing data: missing field {}', f)
+            logger.error('Error when parsing data: missing required field')
             continue
 
         message_list.append(message)
 
     return message_list
+
+
+def update_redis() -> None:
+    """Update redis after fetching data from AisHub api"""
+
+    # TODO: put those out of a function for future use in a loop
+    required_fields = Message.required_fields()
+    infos_keys = Message.infos_keys()
+    position_keys = Message.position_keys()
+
+    logger.debug('')
+    logger.debug("starting api request")
+    try:
+        data = fetch_last_data()
+        logger.debug("data fetched")
+    except AisHubError as err:
+        logger.error('{}', err)
+        data = []
+
+    if data:
+        messages = extract_messages(data)
+        logger.debug("messages extracted")
+
+        logger.debug("starting redis update")
+
+        for m in messages:
+            # insert m in aismessages
+            # TODO: get existing keys before that to avoid useless
+            # serialization
+            key = ':'.join(
+                json.dumps(m[f], default=default_redis_key_encoder)
+                for f in required_fields
+            )
+            val = json.dumps(m, default=default_redis_encoder)
+            pipeline_client.hset('aismessages', key, val)
+
+            # insert m as infos in infos:
+            key = f'infos:{m["mmsi"]}'
+            infos = {k: v for k, v in m.items()
+                     if k in infos_keys}
+            val = json.dumps(infos)
+            pipeline_client.set(f'infos:{key}', val)
+
+            # insert m as position in position:
+            key = f'position:{m["mmsi"]}'
+            position = {k: v for k, v in m.items()
+                        if k in position_keys}
+            val = json.dumps(position, default=default_redis_encoder)
+            delta = (
+                m['time']-datetime.now(timezone.utc)
+            ).total_seconds()
+            expire = POSITION_EXPIRE_TTL - int(delta)
+            pipeline_client.set(f'position:{key}', val, ex=expire)
+
+        pipeline_client.execute()
+
+        logger.debug("{} aismessages waiting for postgres",
+                     redis_client.hlen('aismessages'))
+        logger.debug("{} unique boats, {} positions",
+                     len(redis_client.keys('infos:*')),
+                     len(redis_client.keys('position:*')))
+        logger.info("redis updated")
 
 
 run = True
@@ -193,66 +253,9 @@ should_stop = threading.Condition()
 def api_access() -> None:
     """Fetch data from AisHub at regular interval and store it in redis"""
 
-    # TODO: put those out of a function for future use in a loop
-    required_fields = Message.required_fields()
-    infos_keys = Message.infos_keys()
-    position_keys = Message.position_keys()
-
     with should_stop:
         while run:
-            logger.debug('')
-            logger.debug("starting api request")
-            try:
-                data = fetch_last_data()
-                logger.debug("data fetched")
-            except AisHubError as err:
-                logger.error('{}', err)
-                data = []
-
-            if data:
-                messages = extract_messages(data)
-                logger.debug("messages extracted")
-
-                logger.debug("starting redis update")
-
-                for m in messages:
-                    # insert m in aismessages
-                    # TODO: get existing keys before that to avoid useless
-                    # serialization
-                    key = ':'.join(
-                        json.dumps(m[f], default=default_redis_key_encoder)
-                        for f in required_fields
-                    )
-                    val = json.dumps(m, default=default_redis_encoder)
-                    pipeline_client.hset('aismessages', key, val)
-
-                    # insert m as infos in infos:
-                    key = f'infos:{m["mmsi"]}'
-                    infos = {k: v for k, v in m.items()
-                             if k in infos_keys}
-                    val = json.dumps(infos)
-                    pipeline_client.set(f'infos:{key}', val)
-
-                    # insert m as position in position:
-                    key = f'position:{m["mmsi"]}'
-                    position = {k: v for k, v in m.items()
-                                if k in position_keys}
-                    val = json.dumps(position, default=default_redis_encoder)
-                    delta = (
-                        m['time']-datetime.now(timezone.utc)
-                    ).total_seconds()
-                    expire = POSITION_EXPIRE_TTL - int(delta)
-                    pipeline_client.set(f'position:{key}', val, ex=expire)
-
-                pipeline_client.execute()
-
-                logger.debug("{} aismessages waiting for postgres",
-                             redis_client.hlen('aismessages'))
-                logger.debug("{} unique boats, {} positions",
-                             len(redis_client.keys('infos:*')),
-                             len(redis_client.keys('position:*')))
-                logger.info("redis updated")
-
+            update_redis()
             should_stop.wait(timeout=AISHUBAPI_UPDATE_WINDOW)
 
 
@@ -266,6 +269,6 @@ def start() -> None:
 
 def stop() -> None:
     """Stop aishubapi service"""
-    run = False
+    # run = False
     with should_stop:
         should_stop.notify_all()

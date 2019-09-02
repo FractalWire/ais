@@ -1,10 +1,10 @@
 from __future__ import annotations
-from typing import List, Dict, Any
+from typing import Tuple, Dict, Any
 import logging
 
 
 class Message():
-    def __init__(self, fmt: str, args: List[Any]) -> None:
+    def __init__(self, fmt: str, args: Tuple[Any, ...]) -> None:
         self.fmt = fmt
         self.args = args
 
