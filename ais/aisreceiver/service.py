@@ -1,7 +1,6 @@
 """Module used to manage aisreceiver service"""
-# TODO: /!\ small memory leak somewhere, need profiling /!\
 from __future__ import annotations
-from typing import List
+from typing import List, Iterator
 from time import sleep
 import json
 
@@ -66,7 +65,7 @@ def init_redis() -> None:
     logger.info("redis initialized")
 
 
-def message_generator(batch_size, redis_count: int = 100) -> List[Message]:
+def message_generator(batch_size, redis_count: int = 100) -> Iterator[List[Message]]:
     """Generate Message model from Redis 'aismessages:' keys and delete those
     keys from Redis once generated"""
     messages = []
@@ -80,6 +79,8 @@ def message_generator(batch_size, redis_count: int = 100) -> List[Message]:
             cursor=cursor,
             count=redis_count
         )
+        if not redis_messages:
+            return
         redis_client.hdel('aismessages', *redis_messages.keys())
 
         for redis_message in redis_messages.values():
@@ -96,7 +97,7 @@ def message_generator(batch_size, redis_count: int = 100) -> List[Message]:
             i = 0
 
         if cursor == 0:
-            break
+            return
 
 
 def update_db() -> None:

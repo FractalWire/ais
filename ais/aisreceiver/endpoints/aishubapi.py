@@ -1,7 +1,7 @@
 """This module manages the interaction with AISHub API
 https://www.aishub.net/api"""
 from __future__ import annotations
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Iterator
 import requests
 import gzip
 import json
@@ -184,13 +184,59 @@ def extract_messages(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return message_list
 
 
-def update_redis() -> None:
-    """Update redis after fetching data from AisHub api"""
+def enqueue_pipeline(messages: List[Dict[str, Any]],
+                     batch_size: int = 10000) -> Iterator[None]:
+    """Enqueue various informations of each message on the Redis pipeline"""
 
     # TODO: put those out of a function for future use in a loop
     required_fields = Message.required_fields()
     infos_keys = Message.infos_keys()
     position_keys = Message.position_keys()
+
+    i = 0
+    for m in messages:
+        mmsi = m['mmsi']
+
+        # insert m in aismessages
+        key = ':'.join(
+            json.dumps(m[f], default=default_redis_key_encoder)
+              for f in required_fields
+        )
+        val = json.dumps(m, default=default_redis_encoder)
+        pipeline_client.hset('aismessages', key, val)
+
+        # insert m as infos in 'infos:'
+        key = f'infos:{mmsi}'
+        infos = {k: v for k, v in m.items()
+                 if k in infos_keys}
+        val = json.dumps(infos)
+        pipeline_client.set(key, val)
+
+        point = m['point']
+        if point:
+            # insert m as position in 'position:'
+            key = f'position:{mmsi}'
+            position = {k: v for k, v in m.items()
+                        if k in position_keys}
+            val = json.dumps(position, default=default_redis_encoder)
+            delta = (
+                m['time']-datetime.now(timezone.utc)
+            ).total_seconds()
+            expire = POSITION_TTL - int(delta)
+            pipeline_client.set(key, val, ex=expire)
+
+            # insert last geospatial value for each m
+            pipeline_client.geoadd('mmsi:position', *(*point.coords, mmsi))
+
+        i += 1
+        if i >= batch_size:
+            i = 0
+            yield
+    yield
+
+
+def update_redis() -> None:
+    """Update redis after fetching data from AisHub api"""
 
     logger.debug('')
     logger.debug("starting api request")
@@ -206,38 +252,9 @@ def update_redis() -> None:
         logger.debug("messages extracted")
 
         logger.debug("starting redis update")
-
-        for m in messages:
-            # insert m in aismessages
-            key = ':'.join(
-                json.dumps(m[f], default=default_redis_key_encoder)
-                  for f in required_fields
-            )
-            val = json.dumps(m, default=default_redis_encoder)
-            pipeline_client.hset('aismessages', key, val)
-
-            # insert m as infos in infos:
-            key = f'infos:{m["mmsi"]}'
-            infos = {k: v for k, v in m.items()
-                     if k in infos_keys}
-            val = json.dumps(infos)
-            pipeline_client.set(key, val)
-
-            # insert m as position in position:
-            key = f'position:{m["mmsi"]}'
-            position = {k: v for k, v in m.items()
-                        if k in position_keys}
-            val = json.dumps(position, default=default_redis_encoder)
-            delta = (
-                m['time']-datetime.now(timezone.utc)
-            ).total_seconds()
-            expire = POSITION_TTL - int(delta)
-            pipeline_client.set(key, val, ex=expire)
-
-        pipeline_client.execute()
-
-        # def key_len(pattern: str) -> int:
-        #     return sum(1 for _ in redis_client.scan_iter(match=pattern,count=100))
+        # saving messages in batch to avoid high memory usage
+        for _ in enqueue_pipeline(messages):
+            pipeline_client.execute()
 
         logger.debug("{} aismessages waiting for postgres",
                      redis_client.hlen('aismessages'))
