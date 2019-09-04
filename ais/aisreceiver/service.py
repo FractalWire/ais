@@ -1,4 +1,5 @@
 """Module used to manage aisreceiver service"""
+# TODO: /!\ small memory leak somewhere, need profiling /!\
 from __future__ import annotations
 from typing import List
 from time import sleep
@@ -8,7 +9,7 @@ from core.models import Message
 from core.serializers.json import redis_object_hook
 
 from .endpoints import aishubapi
-from .app_settings import POSTGRES_UPDATE_WINDOW
+from .app_settings import POSTGRES_WINDOW
 from .redisclient import redis_client, pipeline_client
 
 import logging
@@ -26,22 +27,22 @@ def start() -> None:
 
     # 1) init redis
     init_redis()
-    logger.info("redis initialized")
 
     # 2) launch endpoint listeners
     aishubapi.start()
-    logger.info("aishubapi endpoints started")
-    logger.info("==============================")
 
     sleep(10)  # give endpoints time to start for immediate update
+
+    logger.info("aishubapi endpoints started")
+    logger.info("==============================")
 
     # 3) every X minutes :
     #    - update database from redis
     #    - flush redis aismessages
     while run:
-
         update_db()
-        sleep(POSTGRES_UPDATE_WINDOW)
+        # TODO: sleep time do not take into account update_db process time
+        sleep(POSTGRES_WINDOW)
 
 
 def stop() -> None:
@@ -51,54 +52,71 @@ def stop() -> None:
 def init_redis() -> None:
     """Initialises redis with existing corresponding Message fields from
     the database"""
+    redis_client.flushdb()  # TODO: probably not needed
+
+    logger.debug('starting Redis initialization')
     last_infos = (Message.objects.distinct('mmsi')
                   .order_by('mmsi', '-time')
                   .values(*Message.infos_keys()))
-    redis_client.flushdb()  # TODO: probably not needed
+    logger.debug('infos fetched from database')
     for infos in last_infos:
         pipeline_client.set(f'infos:{infos["mmsi"]}', json.dumps(infos))
     pipeline_client.execute()
 
+    logger.info("redis initialized")
 
-def make_bulk_messages() -> List[Message]:
-    """Creates a message list for following batch processing to the database
-    based on redis 'infos:' and 'position:'"""
 
+def message_generator(batch_size, redis_count: int = 100) -> List[Message]:
+    """Generate Message model from Redis 'aismessages:' keys and delete those
+    keys from Redis once generated"""
     messages = []
-
-    logger.debug('fetching data from redis')
-
-    messages_redis = redis_client.hgetall('aismessages')
-    logger.debug('making bulk_messages')
-    for message_redis in messages_redis.values():
-        message = Message(
-            **json.loads(message_redis, object_hook=redis_object_hook)
+    total_messages = 0
+    cursor = 0
+    i = 0
+    loops_before_yield = batch_size // redis_count
+    while True:
+        cursor, redis_messages = redis_client.hscan(
+            'aismessages',
+            cursor=cursor,
+            count=redis_count
         )
-        messages.append(message)
+        redis_client.hdel('aismessages', *redis_messages.keys())
 
-    return messages
+        for redis_message in redis_messages.values():
+            message = Message(
+                **json.loads(redis_message, object_hook=redis_object_hook)
+            )
+            messages.append(message)
+
+        i += 1
+        if i >= loops_before_yield:
+            total_messages += len(messages)
+            yield (total_messages, messages,)
+            messages = []
+            i = 0
+
+        if cursor == 0:
+            break
 
 
 def update_db() -> None:
     """Update the database using messages stored in redis"""
-    messages_before = Message.objects.count()
+
     logger.debug("starting database update")
-    messages = make_bulk_messages()
-    # TODO: Need redis lock before that, to avoid potential message loss
-    # TODO: or simply use TTL with window < TTL < 2*window,
-    # there should be fewer misses and no losses
-    redis_client.delete('aismessages')
+    messages_before = Message.objects.count()
 
-    messages_len = len(messages)
-    logger.debug('starting bulk_create')
-    Message.objects.bulk_create(messages, ignore_conflicts=True)
+    logger.debug('bulk_create using message_generator')
+    batch_size = 1000
+    total_messages = 0
+    for total_messages, messages in message_generator(batch_size):
+        Message.objects.bulk_create(messages, ignore_conflicts=True)
 
-    logger.info('database updated')
     messages_after = Message.objects.count()
 
     # TODO: Maybe only useful in DEBUG mode...
     new_messages = messages_after-messages_before
     logger.debug("{} new messages added to the database, {} discarded",
-                 new_messages, messages_len-new_messages)
+                 new_messages, total_messages-new_messages)
 
+    logger.info('database updated')
     logger.info("------------------------------")

@@ -15,7 +15,7 @@ from django.contrib.gis.geos import Point
 from core.serializers.json import default_redis_encoder, default_redis_key_encoder
 from core.models import Message
 
-from aisreceiver.app_settings import POSITION_EXPIRE_TTL, AISHUBAPI_UPDATE_WINDOW
+from aisreceiver.app_settings import POSITION_TTL, AISHUBAPI_WINDOW
 from aisreceiver.redisclient import redis_client, pipeline_client
 
 import logging
@@ -196,7 +196,7 @@ def update_redis() -> None:
     logger.debug("starting api request")
     try:
         data = fetch_last_data()
-        logger.debug("data fetched")
+        logger.debug("data fetched from AisHub")
     except AisHubError as err:
         logger.error('{}', err)
         data = []
@@ -209,11 +209,9 @@ def update_redis() -> None:
 
         for m in messages:
             # insert m in aismessages
-            # TODO: get existing keys before that to avoid useless
-            # serialization
             key = ':'.join(
                 json.dumps(m[f], default=default_redis_key_encoder)
-                for f in required_fields
+                  for f in required_fields
             )
             val = json.dumps(m, default=default_redis_encoder)
             pipeline_client.hset('aismessages', key, val)
@@ -223,7 +221,7 @@ def update_redis() -> None:
             infos = {k: v for k, v in m.items()
                      if k in infos_keys}
             val = json.dumps(infos)
-            pipeline_client.set(f'infos:{key}', val)
+            pipeline_client.set(key, val)
 
             # insert m as position in position:
             key = f'position:{m["mmsi"]}'
@@ -233,10 +231,13 @@ def update_redis() -> None:
             delta = (
                 m['time']-datetime.now(timezone.utc)
             ).total_seconds()
-            expire = POSITION_EXPIRE_TTL - int(delta)
-            pipeline_client.set(f'position:{key}', val, ex=expire)
+            expire = POSITION_TTL - int(delta)
+            pipeline_client.set(key, val, ex=expire)
 
         pipeline_client.execute()
+
+        # def key_len(pattern: str) -> int:
+        #     return sum(1 for _ in redis_client.scan_iter(match=pattern,count=100))
 
         logger.debug("{} aismessages waiting for postgres",
                      redis_client.hlen('aismessages'))
@@ -256,7 +257,7 @@ def api_access() -> None:
     with should_stop:
         while run:
             update_redis()
-            should_stop.wait(timeout=AISHUBAPI_UPDATE_WINDOW)
+            should_stop.wait(timeout=AISHUBAPI_WINDOW)
 
 
 service_thread = threading.Thread(target=api_access)
