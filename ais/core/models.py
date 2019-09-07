@@ -1,9 +1,6 @@
 from __future__ import annotations
 from django.contrib.gis.db import models
 
-from typing import NamedTuple
-from datetime import datetime
-
 
 class Message(models.Model):
     """Various informations sent by the vessel via AIS"""
@@ -32,7 +29,12 @@ class Message(models.Model):
     destination = models.CharField(max_length=256, blank=True, default='')
 
     class Meta:
-        unique_together = ('mmsi', 'time',)
+        constraints = [
+            models.UniqueConstraint(
+                fields=('mmsi', 'time',),
+                name='core_message_uniq_mmsi_time'
+            )
+        ]
 
     @staticmethod
     def not_available_value():
