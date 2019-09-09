@@ -1,6 +1,5 @@
 """Module used to manage aisreceiver service"""
 from __future__ import annotations
-from typing import List
 from time import sleep
 import io
 import csv
@@ -37,8 +36,8 @@ def start() -> None:
     logger.info("==============================")
 
     # 3) every X minutes :
-    #    - update database from redis
-    #    - flush redis aismessages
+    #    - update database from AisBuffer
+    #    - flush AisBuffer
     while run:
         update_db()
         # TODO: sleep time do not take into account update_db process time
@@ -47,12 +46,6 @@ def start() -> None:
 
 def stop() -> None:
     pass
-
-
-def messages_to_csv(f: io.TextIOBase,
-                    messages: List[aisbuffer.AisData],
-                    writer: csv.DictWriter) -> None:
-    writer.writerows(messages)
 
 
 def update_db() -> None:
@@ -64,7 +57,7 @@ def update_db() -> None:
                          lineterminator='\n', quoting=csv.QUOTE_MINIMAL,
                          strict=True)
     f = io.StringIO()
-    writer = csv.DictWriter(f, Message.sorted_fields_name(),
+    writer = csv.DictWriter(f, Message._aismeta.sorted_fields_name,
                             dialect='postgres')
     batch_size = 10000
     total_messages = 0

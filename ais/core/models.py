@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Set, Tuple
+from typing import Tuple
 from logformat import StyleAdapter
 import logging
 from typing import TYPE_CHECKING
@@ -9,6 +9,7 @@ import msgpack
 
 from django.contrib.gis.db import models
 from django.db import connections
+from django.db.models.base import ModelBase
 
 from core.serializers import msgpack as ms
 from core.serializers import json as js
@@ -20,7 +21,30 @@ if TYPE_CHECKING:
 logger = StyleAdapter(logging.getLogger(__name__))
 
 
-class BaseMessage(models.Model):
+class AisMeta:
+    def __init__(self, class_):
+        # self.required_fields = []
+        # self.not_null_str_fields = set()
+        # self.fields_name = set()
+        # self.sorted_fields_name = []
+        self.required_fields = [f.name for f in class_._meta.fields
+                                if not f.blank]
+        self.not_null_str_fields = {f.name for f in class_._meta.fields
+                                    if f.blank and not f.null} - {'id'}
+        self.fields_name = set(f.name for f in class_._meta.fields) - {'id'}
+        self.sorted_fields_name = sorted(self.fields_name)
+
+
+class AdditionalMeta(ModelBase):
+    def __new__(cls, name, bases, attrs, **kwargs):
+        class_ = super().__new__(cls, name, bases, attrs, **kwargs)
+        aismeta = AisMeta(class_)
+        class_._aismeta = aismeta
+
+        return class_
+
+
+class BaseMessage(models.Model, metaclass=AdditionalMeta):
     """Abstract base class for various informations sent by the vessel via AIS"""
     mmsi = models.IntegerField()
     time = models.DateTimeField()
@@ -48,24 +72,6 @@ class BaseMessage(models.Model):
 
     class Meta:
         abstract = True
-
-    @classmethod
-    def required_fields(cls) -> List[str]:
-        return [f.name for f in cls._meta.get_fields()
-                if not f.blank]
-
-    @classmethod
-    def not_null_str_fields(cls) -> Set[str]:
-        return {f.name for f in cls._meta.get_fields()
-                if f.blank and not f.null} - {'id'}
-
-    @classmethod
-    def fields_name(cls) -> Set[str]:
-        return set(f.name for f in cls._meta.fields)
-
-    @classmethod
-    def sorted_fields_name(cls) -> List[str]:
-        return sorted(cls.fields_name())
 
     # @staticmethod
     # def not_available_value() -> Dict[str, Any]:
@@ -180,10 +186,6 @@ class Message(BaseMessage):
             )
         ]
 
-    @classmethod
-    def fields_name(cls):
-        return super().fields_name() - {'id'}
-
 
 class LastMessage(BaseMessage):
     """Concrete class for the table holding the last messages sent by AIS"""
@@ -197,7 +199,7 @@ def copy_csv(f: TextIOBase, sep: str = '|', null: str = '') -> Tuple[int, int]:
         # Create temp table
         table_name = Message._meta.db_table
         tmp_table_name = 'tmp_{0}'.format(Message._meta.db_table)
-        fields_name = Message.sorted_fields_name()
+        fields_name = Message._aismeta.sorted_fields_name
         fields_name_str = ','.join(fields_name)
         create_tmp_table_query = (
             'CREATE TEMPORARY TABLE {0} AS'
@@ -226,9 +228,10 @@ def copy_csv(f: TextIOBase, sep: str = '|', null: str = '') -> Tuple[int, int]:
 
         # upsert into core_lastmessage table
         table_name = LastMessage._meta.db_table
-        fields_name_str = ','.join(LastMessage.sorted_fields_name())
+        fields_name = LastMessage._aismeta.sorted_fields_name
+        fields_name_str = ','.join(fields_name)
         excluded_fields_name = ','.join(
-            'excluded.{}'.format(f) for f in LastMessage.sorted_fields_name())
+            'excluded.{}'.format(f) for f in fields_name)
         upsert_query = (
             'INSERT INTO {0} AS lm ({1})'
             ' SELECT DISTINCT ON (mmsi) {1} FROM {2}'

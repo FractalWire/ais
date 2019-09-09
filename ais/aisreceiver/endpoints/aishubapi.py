@@ -169,8 +169,8 @@ def extract_messages(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Extract raw messages from data and put those in list"""
 
     # TODO: put that out of a function for future use in a loop
-    required_fields = Message.required_fields()
-    str_fields = Message.not_null_str_fields()
+    required_fields = Message._aismeta.required_fields
+    str_fields = Message._aismeta.not_null_str_fields
 
     message_list = []
     for d in data:
