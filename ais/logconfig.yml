@@ -13,6 +13,12 @@ handlers:
         filename: logs/ais.log
         mode: w
         level: INFO
+    core:
+        class: logging.FileHandler
+        formatter: brief
+        filename: logs/core.log
+        mode: w
+        level: DEBUG
     aisreceiver:
         class: logging.FileHandler
         formatter: brief
@@ -22,11 +28,14 @@ handlers:
     console:
         class: logging.StreamHandler
         formatter: brief
-        level: INFO
+        level: DEBUG
 loggers:
     aisreceiver:
         level: DEBUG
         handlers: [aisreceiver, console]
+    core:
+        level: DEBUG
+        handlers: [core, console]
 root:
     level: INFO
     handlers: [precise]
