@@ -188,3 +188,63 @@ class Message(BaseMessage):
 class LastMessage(BaseMessage):
     """Concrete class for the table holding the last messages sent by AIS"""
     mmsi = models.IntegerField(primary_key=True)
+
+
+def copy_csv(f: TextIOBase, sep: str = '|', null: str = '') -> Tuple[int, int]:
+    """Copy Message in f to a temporary table then update core_message and
+    core_lastmessage tables"""
+    with connections['default'].cursor() as cursor:
+        # Create temp table
+        table_name = Message._meta.db_table
+        tmp_table_name = 'tmp_{0}'.format(Message._meta.db_table)
+        fields_name = Message.sorted_fields_name()
+        fields_name_str = ','.join(fields_name)
+        create_tmp_table_query = (
+            'CREATE TEMPORARY TABLE {0} AS'
+            ' SELECT {1} FROM {2} limit 0'.format(
+                tmp_table_name,
+                fields_name_str,
+                table_name
+            )
+        )
+        cursor.execute(create_tmp_table_query)
+        cursor.copy_from(f, tmp_table_name, sep=sep, null=null,
+                         columns=fields_name)
+
+        # Insert into core_message table
+        insert_query = (
+            'INSERT INTO {0} ({1})'
+            ' SELECT {1} FROM {2}'
+            ' ON CONFLICT DO NOTHING'.format(
+                table_name,
+                fields_name_str,
+                tmp_table_name
+            )
+        )
+        cursor.execute(insert_query)
+        new_messages = cursor.rowcount
+
+        # upsert into core_lastmessage table
+        table_name = LastMessage._meta.db_table
+        fields_name_str = ','.join(LastMessage.sorted_fields_name())
+        excluded_fields_name = ','.join(
+            'excluded.{}'.format(f) for f in LastMessage.sorted_fields_name())
+        upsert_query = (
+            'INSERT INTO {0} AS lm ({1})'
+            ' SELECT DISTINCT ON (mmsi) {1} FROM {2}'
+            ' ON CONFLICT (mmsi) DO UPDATE'
+            ' SET ({1}) = ({3})'
+            ' WHERE lm.time < excluded.time'.format(
+                table_name,
+                fields_name_str,
+                tmp_table_name,
+                excluded_fields_name
+            )
+        )
+        cursor.execute(upsert_query)
+        new_lastmessages = cursor.rowcount
+
+        drop_tmp_table = 'DROP TABLE {0}'.format(tmp_table_name)
+        cursor.execute(drop_tmp_table)
+
+        return (new_messages, new_lastmessages,)
