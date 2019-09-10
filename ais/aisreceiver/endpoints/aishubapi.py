@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 from django.contrib.gis.geos import Point
 
-from core.models import Message
+from core.models import BaseMessage
 
 from aisreceiver.app_settings import AISHUBAPI_WINDOW
 from aisreceiver import aisbuffer
@@ -111,12 +111,8 @@ def parse_data(data: Dict[str, Any]) -> Dict[str, Any]:
             message['time'] = datetime.fromtimestamp(int(v), timezone.utc)
         elif k == 'LATITUDE':
             lat = round(int(v)/600000, 6)
-            if lat**2 > 90**2:
-                message['valid_position'] = False
         elif k == 'LONGITUDE':
             lon = round(int(v)/600000, 6)
-            if lon**2 > 180**2:
-                message['valid_position'] = False
         elif k == 'COG':
             message['cog'] = int(v)/10
         elif k == 'SOG':
@@ -156,34 +152,40 @@ def parse_data(data: Dict[str, Any]) -> Dict[str, Any]:
             # TODO: understand ETA format
             message['eta'] = None
 
-    if 'valid_position' in message and not message['valid_position']:
+    required_fields = BaseMessage._aismeta.required_fields
+    if not all(f in message for f in required_fields):
+        logger.error('Error when parsing data: missing required fields: {}',
+                     [f for f in message if f in required_fields])
+        return None
+
+    for k in BaseMessage._aismeta.not_null_str_fields:
+        if k in message and message[k] is not None:
+            continue
+        message[k] = ''
+
+    message['valid_position'] = True
+    if lat**2 > 90**2:
+        message['valid_position'] = False
+    if lon**2 > 180**2:
+        message['valid_position'] = False
+
+    if not message['valid_position']:
         message['point'] = None
     else:
         message['point'] = Point(lon, lat)
-        message['valid_position'] = True
 
     return message
 
 
 def extract_messages(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Extract raw messages from data and put those in list"""
-
-    # TODO: put that out of a function for future use in a loop
-    required_fields = Message._aismeta.required_fields
-    str_fields = Message._aismeta.not_null_str_fields
+    """Extract raw messages from data and put those in a list"""
 
     message_list = []
     for d in data:
         message = parse_data(d)
-        if not all(f in message for f in required_fields):
-            logger.error('Error when parsing data: missing required field')
-            continue
-        for k in str_fields:
-            if k in message and message[k]:
-                continue
-            message[k] = ''
 
-        message_list.append(message)
+        if message:
+            message_list.append(message)
 
     return message_list
 
