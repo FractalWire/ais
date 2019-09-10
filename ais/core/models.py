@@ -26,10 +26,6 @@ AisData = Dict[str, Any]
 
 class AisMeta:
     def __init__(self, class_):
-        # self.required_fields = []
-        # self.not_null_str_fields = set()
-        # self.fields_name = set()
-        # self.sorted_fields_name = []
         self.required_fields = [f.name for f in class_._meta.fields
                                 if not f.blank]
         self.not_null_str_fields = {f.name for f in class_._meta.fields
@@ -75,54 +71,6 @@ class BaseMessage(models.Model, metaclass=AdditionalMeta):
 
     class Meta:
         abstract = True
-
-    # @staticmethod
-    # def not_available_value() -> Dict[str, Any]:
-    #     return dict(
-    #         point=None,
-    #         valid_position=False,
-    #         cog=360.0,
-    #         sog=102.4,
-    #         heading=511,
-    #         navstat=15,
-    #         ship_type=0,
-    #         dim_bow=0,
-    #         dim_stern=0,
-    #         dim_port=0,
-    #         dim_starboard=0,
-    #     )
-
-    # @staticmethod
-    # def infos_keys() -> Set[str]:
-    #     return {
-    #         'mmsi',
-    #         'imo',
-    #         'callsign',
-    #         'name',
-    #         'ship_type',
-    #         'dim_bow',
-    #         'dim_stern',
-    #         'dim_port',
-    #         'dim_starboard',
-    #         'eta',
-    #         'draught',
-    #         'destination',
-    #     }
-
-    # @staticmethod
-    # def position_keys() -> Set[str]:
-    #     return {
-    #         'mmsi',
-    #         'time',
-    #         'point',
-    #         'valid_position',
-    #         'cog',
-    #         'sog',
-    #         'heading',
-    #         'pac',
-    #         'rot',
-    #         'navstat',
-    #     }
 
     @classmethod
     def from_msgpack(cls, msgpack_object: bytes) -> Message:
