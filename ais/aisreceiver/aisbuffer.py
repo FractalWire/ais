@@ -4,12 +4,10 @@ import threading
 import json
 import msgpack
 
-# from core.models import Message
+from core.models import AisData
 from core.serializers import msgpack as ms
 from core.serializers import json as js
 from core.serializers import csv as cs
-
-AisData = Dict[str, Any]
 
 
 class AisBuffer:
@@ -18,7 +16,7 @@ class AisBuffer:
 
     def __init__(
             self,
-            keyformat: Callable[[AisData], str],
+            keyformat: Callable[[AisData], str] = lambda x: x['mmsi'],
             serialize: Callable[[AisData], Any] = lambda x: x,
             deserialize: Callable[[Any], AisData] = lambda x: x
     ) -> None:

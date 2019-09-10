@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Tuple
+from typing import Tuple, Dict, Any
 from logformat import StyleAdapter
 import logging
 from typing import TYPE_CHECKING
@@ -19,6 +19,9 @@ if TYPE_CHECKING:
 
 
 logger = StyleAdapter(logging.getLogger(__name__))
+
+"""The raw ais data in a dictionary form"""
+AisData = Dict[str, Any]
 
 
 class AisMeta:
