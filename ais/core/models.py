@@ -119,11 +119,9 @@ class BaseMessage(models.Model, metaclass=AdditionalMeta):
     #     )
 
     def __repr__(self) -> str:
-        return 'Message({0}): ({1}, {2}, {3})'.format(
-            self.id,
+        return 'Message: ({0}, {1})'.format(
             self.mmsi,
-            str(self.time),
-            str(self.point)
+            str(self.time)
         )
 
 
@@ -135,6 +133,9 @@ class Message(BaseMessage):
                 fields=('mmsi', 'time',),
                 name='core_message_uniq_mmsi_time'
             )
+        ]
+        indexes = [
+            models.Index(fields=['mmsi', '-time']),
         ]
 
 
