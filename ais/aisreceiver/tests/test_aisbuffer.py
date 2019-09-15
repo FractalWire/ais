@@ -47,15 +47,12 @@ class AisBufferTestCase(test.SimpleTestCase):
     def test_generator(self):
         batch_size = 2
         old_total_data = len(self.aisbuffer.data)
-        # old_data = set(self.aisbuffer.data.values())
-        # new_data = set()
-        for total_data, data in self.aisbuffer.generator(batch_size):
+        total_data = 0
+        for data in self.aisbuffer.generator(batch_size):
             # Test if the good amount of data is passed
             self.assertTrue(len(data) <= batch_size)
-            # new_data.update(data)
+            total_data += len(data)
         # Test if all the data have been passed
         self.assertEqual(old_total_data, total_data)
         # Test if there is no remaining data
         self.assertEqual(len(self.aisbuffer.data), 0)
-
-        # self.assertEqual(old_data, new_data)

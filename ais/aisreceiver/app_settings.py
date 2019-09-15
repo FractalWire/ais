@@ -1,11 +1,15 @@
 REDIS_CONF = {
     'db': 1,
 }
-# Redis position keys ttl
-POSITION_EXPIRE_TTL = 6*60*60  # in seconds
 
 # Update interval to store the latest position received
-POSTGRES_UPDATE_WINDOW = 5*60  # in seconds
+POSTGRES_WINDOW = int(15*60)  # in seconds
 
 # Update interval to fetch messages from aishub api
-AISHUBAPI_UPDATE_WINDOW = 5*60  # in seconds
+AISHUBAPI_WINDOW = 1*60  # in seconds
+
+# Redis position keys ttl
+POSITION_TTL = 6*60*60  # in seconds
+
+# Redis aismessage keys ttl must be: window < ttl < 2*window
+AISMESSAGE_TTL = int(1.3*POSTGRES_WINDOW)

@@ -5,7 +5,7 @@ import io
 import csv
 # import shutil
 
-from core.models import Message, copy_csv
+from core.models import BaseInfos, copy_csv
 
 from .endpoints import aishubapi
 from .app_settings import POSTGRES_WINDOW
@@ -49,22 +49,23 @@ def stop() -> None:
 
 
 def update_db() -> None:
-    """Update the database using messages stored in redis"""
+    """Update the database using messages stored in buffer"""
 
     logger.debug("starting database update")
 
     csv.register_dialect('postgres', delimiter='|', escapechar='\\',
-                         lineterminator='\n', quoting=csv.QUOTE_MINIMAL,
-                         strict=True)
+                         lineterminator='\n', quoting=csv.QUOTE_NONE,
+                         quotechar='', strict=True)
     f = io.StringIO()
-    writer = csv.DictWriter(f, Message._aismeta.sorted_fields_name,
+    writer = csv.DictWriter(f, BaseInfos._aismeta.sorted_fields_name,
                             dialect='postgres')
     batch_size = 10000
     total_messages = 0
     logger.debug('preparing csv file for COPY using message_generator')
-    for total_messages, messages in aisbuffer.messages.generator(batch_size):
+    for data in aisbuffer.messages.generator(batch_size):
         # Message.objects.bulk_create(messages, ignore_conflicts=True)
-        writer.writerows(messages)
+        writer.writerows(data)
+        total_messages += len(data)
 
     # f.seek(0)
     # with open('copy.csv', 'w') as file_copy:
@@ -72,14 +73,14 @@ def update_db() -> None:
 
     logger.debug('starting to COPY')
     f.seek(0)
-    new_messages, new_lastmessages = copy_csv(f)
+    new_messages, new_shipinfos = copy_csv(f)
     f.close()
 
     # TODO: Maybe only useful in DEBUG mode...
     logger.debug("{} new messages added to the database, {} discarded",
                  new_messages, total_messages-new_messages)
-    logger.debug("{} new last messages added to the database, {} discarded",
-                 new_lastmessages, total_messages-new_lastmessages)
+    logger.debug("{} new ship infos added to the database, {} discarded",
+                 new_shipinfos, total_messages-new_shipinfos)
 
     logger.info('database updated')
     logger.info("------------------------------")

@@ -18,15 +18,15 @@ class AisBuffer:
             self,
             keyformat: Callable[[AisData], str] = lambda x: x['mmsi'],
             serialize: Callable[[AisData], Any] = lambda x: x,
-            deserialize: Callable[[Any], AisData] = lambda x: x
+            deserialize: Callable[[Any], Any] = lambda x: x
     ) -> None:
         self.lock = threading.Lock()
-        self.data: AisData = dict()
+        self.data: Dict[str, Any] = dict()
         self.keyformat = keyformat
         self.serialize = serialize
         self.deserialize = deserialize
 
-    def generator(self, batch_size: int = 1000) -> Iterator[int, List[AisData]]:
+    def generator(self, batch_size: int = 1000) -> Iterator[int, List[Any]]:
         """Generate and remove batch_size data from self.data"""
         data = []
         i = 0
@@ -38,12 +38,12 @@ class AisBuffer:
             i += 1
             if i % batch_size == 0:
                 self.lock.release()
-                yield (i, data,)
+                yield data
                 data.clear()
                 self.lock.acquire()
 
         self.lock.release()
-        yield (i, data,)
+        yield data
         data.clear()
 
     def update(self, data: List[AisData], batch_size: int = 1000) -> None:
@@ -61,7 +61,6 @@ class AisBuffer:
 
 
 # TODO: Organize that better
-
 def json_serializer(message: AisData) -> str:
     return json.dumps(message, default=js.default_encoder, use_bin_type=True)
 

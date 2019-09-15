@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 from django.contrib.gis.geos import Point
 
-from core.models import BaseMessage
+from core.models import BaseInfos
 
 from aisreceiver.app_settings import AISHUBAPI_WINDOW
 from aisreceiver import aisbuffer
@@ -152,13 +152,13 @@ def parse_data(data: Dict[str, Any]) -> Dict[str, Any]:
             # TODO: understand ETA format
             message['eta'] = None
 
-    required_fields = BaseMessage._aismeta.required_fields
+    required_fields = BaseInfos._aismeta.required_fields
     if not all(f in message for f in required_fields):
         logger.error('Error when parsing data: missing required fields: {}',
                      [f for f in message if f in required_fields])
         return None
 
-    for k in BaseMessage._aismeta.not_null_str_fields:
+    for k in BaseInfos._aismeta.not_null_str_fields:
         if k in message and message[k] is not None:
             continue
         message[k] = ''

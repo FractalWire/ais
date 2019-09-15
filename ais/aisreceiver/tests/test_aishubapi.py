@@ -9,7 +9,7 @@ from django import test
 from django.contrib.gis.geos import Point
 
 from aisreceiver.endpoints import aishubapi
-from core.models import BaseMessage
+from core.models import BaseInfos
 
 
 class AishubapiTestCase(test.SimpleTestCase):
@@ -177,7 +177,7 @@ class AishubapiTestCase(test.SimpleTestCase):
 
         # Missing required fields test
         # ['MMSI', 'TIME']
-        for f in [f.upper() for f in BaseMessage._aismeta.required_fields]:
+        for f in [f.upper() for f in BaseInfos._aismeta.required_fields]:
             self.setUp()
             del self.firstmessage[f]
             self.firstmessage_parsed = None
@@ -205,7 +205,7 @@ class AishubapiTestCase(test.SimpleTestCase):
         str_fields_mapping = dict(name="NAME",
                                   callsign="CALLSIGN",
                                   destination="DEST")
-        for f in BaseMessage._aismeta.not_null_str_fields:
+        for f in BaseInfos._aismeta.not_null_str_fields:
             if f not in str_fields_mapping:
                 raise KeyError("mapping missing a field: {}".format(f))
             self.setUp()

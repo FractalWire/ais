@@ -19,6 +19,7 @@ def default_encoder(o: Any) -> Dict[str, Any]:
         return o.isoformat()
     if isinstance(o, Point):
         return o.hexewkb.decode()
-    if o == '':
-        return '""'
+    if isinstance(o, str):
+        # TODO: something better for escaping quote here
+        return '"{0}"'.format(o.replace('"', "'"))
     return o

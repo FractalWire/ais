@@ -1,8 +1,10 @@
 from __future__ import annotations
-from typing import Tuple, Dict, Any
+from typing import Tuple, Dict, Any, List
 from logformat import StyleAdapter
 import logging
 from typing import TYPE_CHECKING
+import io
+import csv
 
 import json
 import msgpack
@@ -13,6 +15,7 @@ from django.db.models.base import ModelBase
 
 from core.serializers import msgpack as ms
 from core.serializers import json as js
+from core.serializers import csv as cs
 
 if TYPE_CHECKING:
     from io import TextIOBase
@@ -43,7 +46,7 @@ class AdditionalMeta(ModelBase):
         return class_
 
 
-class BaseMessage(models.Model, metaclass=AdditionalMeta):
+class BaseInfos(models.Model, metaclass=AdditionalMeta):
     """Abstract base class for various informations sent by the vessel via AIS"""
     mmsi = models.IntegerField()
     time = models.DateTimeField()
@@ -74,7 +77,7 @@ class BaseMessage(models.Model, metaclass=AdditionalMeta):
 
     @classmethod
     def from_msgpack(cls, msgpack_object: bytes) -> Message:
-        """Factory to build a Message from a msgpack object"""
+        """Factory to build a BaseMessage from a msgpack object"""
         msg_dict = msgpack.unpackb(msgpack_object,
                                    object_hook=ms.object_decoder,
                                    raw=False)
@@ -82,7 +85,7 @@ class BaseMessage(models.Model, metaclass=AdditionalMeta):
 
     @classmethod
     def from_json(cls, json_object: str) -> Message:
-        """Factory to build a Message from a json object"""
+        """Factory to build a BaseMessage from a json object"""
         msg_dict = json.loads(json_object,
                               object_hook=js.object_decoder)
         return cls(**msg_dict)
@@ -125,8 +128,16 @@ class BaseMessage(models.Model, metaclass=AdditionalMeta):
         )
 
 
-class Message(BaseMessage):
+class ShipInfos(BaseInfos):
+    """Concrete class for the table holding the ship informations sent by AIS"""
+    mmsi = models.IntegerField(primary_key=True)
+
+
+class Message(BaseInfos):
     """Concrete class for the table holding the messages sent by AIS"""
+    mmsi = models.ForeignKey(ShipInfos, on_delete=models.DO_NOTHING,
+                             db_column='mmsi')
+
     class Meta:
         constraints = [
             models.UniqueConstraint(
@@ -135,18 +146,17 @@ class Message(BaseMessage):
             )
         ]
         indexes = [
-            models.Index(fields=['mmsi', '-time']),
+            models.Index(
+                fields=['mmsi', '-time'],
+                name='core_message_mmsi_timedesc_idx'
+            ),
         ]
 
 
-class LastMessage(BaseMessage):
-    """Concrete class for the table holding the last messages sent by AIS"""
-    mmsi = models.IntegerField(primary_key=True)
-
-
-def copy_csv(f: TextIOBase, sep: str = '|', null: str = '') -> Tuple[int, int]:
-    """Copy Message in f to a temporary table then update core_message and
-    core_lastmessage tables"""
+def copy_csv(f: TextIOBase, sep: str = '|', null: str = '',
+             escape='\\', quote='\"') -> Tuple[int, int]:
+    """Copy Message in f in a csv format to a temporary table then update
+    core_message and core_lastmessage tables"""
     with connections['default'].cursor() as cursor:
         # Create temp table
         table_name = Message._meta.db_table
@@ -162,10 +172,46 @@ def copy_csv(f: TextIOBase, sep: str = '|', null: str = '') -> Tuple[int, int]:
             )
         )
         cursor.execute(create_tmp_table_query)
-        cursor.copy_from(f, tmp_table_name, sep=sep, null=null,
-                         columns=fields_name)
+
+        # TODO: need quote and escape testing
+        copy_query = (
+            'COPY {0} FROM STDIN WITH'
+            ' (FORMAT csv, DELIMITER \'{1}\', NULL \'{2}\''
+            ', ESCAPE \'{3}\', QUOTE \'"\')'
+            .format(
+                tmp_table_name,
+                sep,
+                null,
+                escape
+            )
+        )
+        cursor.copy_expert(copy_query, f)
+
+        # upsert into core_lastmessage table
+        table_name = ShipInfos._meta.db_table
+        fields_name = ShipInfos._aismeta.sorted_fields_name
+        fields_name_str = ','.join(fields_name)
+        excluded_fields_name = ','.join(
+            'excluded.{}'.format(f) for f in fields_name)
+        upsert_query = (
+            'INSERT INTO {0} AS lm ({1})'
+            ' SELECT DISTINCT ON (mmsi) {1} FROM {2} ORDER BY mmsi, time DESC'
+            ' ON CONFLICT (mmsi) DO UPDATE'
+            ' SET ({1}) = ({3})'
+            ' WHERE lm.time < excluded.time'.format(
+                table_name,
+                fields_name_str,
+                tmp_table_name,
+                excluded_fields_name
+            )
+        )
+        cursor.execute(upsert_query)
+        new_shipinfos = cursor.rowcount
 
         # Insert into core_message table
+        table_name = Message._meta.db_table
+        fields_name = Message._aismeta.sorted_fields_name
+        fields_name_str = ','.join(fields_name)
         insert_query = (
             'INSERT INTO {0} ({1})'
             ' SELECT {1} FROM {2}'
@@ -178,28 +224,29 @@ def copy_csv(f: TextIOBase, sep: str = '|', null: str = '') -> Tuple[int, int]:
         cursor.execute(insert_query)
         new_messages = cursor.rowcount
 
-        # upsert into core_lastmessage table
-        table_name = LastMessage._meta.db_table
-        fields_name = LastMessage._aismeta.sorted_fields_name
-        fields_name_str = ','.join(fields_name)
-        excluded_fields_name = ','.join(
-            'excluded.{}'.format(f) for f in fields_name)
-        upsert_query = (
-            'INSERT INTO {0} AS lm ({1})'
-            ' SELECT DISTINCT ON (mmsi) {1} FROM {2}'
-            ' ON CONFLICT (mmsi) DO UPDATE'
-            ' SET ({1}) = ({3})'
-            ' WHERE lm.time < excluded.time'.format(
-                table_name,
-                fields_name_str,
-                tmp_table_name,
-                excluded_fields_name
-            )
-        )
-        cursor.execute(upsert_query)
-        new_lastmessages = cursor.rowcount
-
+        # cleanup
         drop_tmp_table = 'DROP TABLE {0}'.format(tmp_table_name)
         cursor.execute(drop_tmp_table)
 
-        return (new_messages, new_lastmessages,)
+        return (new_messages, new_shipinfos,)
+    # TODO: Bad execution here... do something ?
+    logger.error('temporary error here')
+
+
+def copy_data(data: List[AisData],
+              sep: str = '|', null: str = '') -> Tuple[int, int]:
+    """Copy AisData list to the database using copy_csv
+    Convenience method for test, should not be used outside as it uses List and
+    might be memory heavy"""
+    csv_data = [{k: cs.default_encoder(v) for k, v in d.items()}
+                for d in data]
+
+    csv.register_dialect('postgres', delimiter='|', escapechar='\\',
+                         lineterminator='\n', quoting=csv.QUOTE_NONE,
+                         quotechar='', strict=True)
+    f = io.StringIO()
+    writer = csv.DictWriter(f, BaseInfos._aismeta.sorted_fields_name,
+                            dialect='postgres')
+    writer.writerows(csv_data)
+    f.seek(0)
+    return copy_csv(f, sep, null)
