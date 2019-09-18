@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/2.2/ref/settings/
 """
 
 import os
+import csv
 
 import yaml
 
@@ -128,10 +129,18 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 
+# Configure logging
 with open("logconfig.yml") as f:
     LOGGING = yaml.load(f, Loader=yaml.FullLoader)
 
+# REDIS parameters, OBSOLETE
 REDIS_CONF = {
     'host': 'localhost',
     'port': 6379,
 }
+
+# Configure csv dialect
+DIALECT_NAME = 'postgres'
+csv.register_dialect(DIALECT_NAME, delimiter='|', escapechar='\\',
+                     lineterminator='\n', quoting=csv.QUOTE_NONE,
+                     quotechar='', strict=True)
