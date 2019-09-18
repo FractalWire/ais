@@ -2,10 +2,9 @@
 from __future__ import annotations
 from time import sleep
 import io
-import csv
 # import shutil
 
-from core.models import BaseInfos, copy_csv
+from core.models import copy_csv
 
 from .endpoints import aishubapi
 from .app_settings import POSTGRES_WINDOW
@@ -53,19 +52,10 @@ def update_db() -> None:
 
     logger.debug("starting database update")
 
-    csv.register_dialect('postgres', delimiter='|', escapechar='\\',
-                         lineterminator='\n', quoting=csv.QUOTE_NONE,
-                         quotechar='', strict=True)
     f = io.StringIO()
-    writer = csv.DictWriter(f, BaseInfos._aismeta.sorted_fields_name,
-                            dialect='postgres')
     batch_size = 10000
-    total_messages = 0
     logger.debug('preparing csv file for COPY using message_generator')
-    for data in aisbuffer.messages.generator(batch_size):
-        # Message.objects.bulk_create(messages, ignore_conflicts=True)
-        writer.writerows(data)
-        total_messages += len(data)
+    total_messages = aisbuffer.messages.prepare_csv(f, batch_size)
 
     # f.seek(0)
     # with open('copy.csv', 'w') as file_copy:

@@ -3,8 +3,12 @@ from typing import Dict, List, Any, Iterator, Callable
 import threading
 import json
 import msgpack
+import io
+import csv
 
-from core.models import AisData
+from ais.settings import DIALECT_NAME
+
+from core.models import AisData, BaseInfos
 from core.serializers import msgpack as ms
 from core.serializers import json as js
 from core.serializers import csv as cs
@@ -26,6 +30,19 @@ class AisBuffer:
         self.serialize = serialize
         self.deserialize = deserialize
 
+    def update(self, data: List[AisData], batch_size: int = 1000) -> None:
+        """Update the buffer with data in batch"""
+        pass_num = len(data)//batch_size + 1
+        for i in range(pass_num):
+            first = i*batch_size
+            last = min(first+batch_size, len(data))
+            with self.lock:
+                for d in data[first:last]:
+                    key = self.keyformat(d)
+
+                    if key not in self.data:
+                        self.data[key] = self.serialize(d)
+
     def generator(self, batch_size: int = 1000) -> Iterator[int, List[Any]]:
         """Generate and remove batch_size data from self.data"""
         data = []
@@ -46,18 +63,17 @@ class AisBuffer:
         yield data
         data.clear()
 
-    def update(self, data: List[AisData], batch_size: int = 1000) -> None:
-        """Update the buffer with data in batch"""
-        pass_num = len(data)//batch_size + 1
-        for i in range(pass_num):
-            first = i*batch_size
-            last = min(first+batch_size, len(data))
-            with self.lock:
-                for d in data[first:last]:
-                    key = self.keyformat(d)
+    def prepare_csv(self, f: io.TextIOBase, batch_size: int = 1000) -> int:
+        """Copy data to a file-like object and return the number of rows
+        written"""
+        writer = csv.DictWriter(f, BaseInfos._aismeta.sorted_fields_name,
+                                dialect=DIALECT_NAME)
+        total_rows = 0
+        for data in self.generator(batch_size):
+            writer.writerows(data)
+            total_rows += len(data)
 
-                    if key not in self.data:
-                        self.data[key] = self.serialize(d)
+        return total_rows
 
 
 # TODO: Organize that better
