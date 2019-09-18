@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from django import test
 from django.contrib.gis.geos import Point
 
-from core.models import AisData, BaseInfos, Message, ShipInfos, copy_data
+from core.models import AisData, BaseInfos, Message, ShipInfos, _copy_data
 
 import logging
 from logformat import StyleAdapter
@@ -52,7 +52,7 @@ class CopyCsvTestCase(test.TestCase):
                      for mmsi in random.sample(self.mmsi_set, len(self.mmsi_set))]
         Message.objects.all().delete()
         ShipInfos.objects.all().delete()
-        copy_data(self.data)
+        _copy_data(self.data)
 
     # def tearDown(self):
         # self.f.close()
@@ -70,7 +70,7 @@ class CopyCsvTestCase(test.TestCase):
         self.setUp()
         old_msg_cnt = Message.objects.count()
         new_data = self.data[:200]
-        copy_data(new_data)
+        _copy_data(new_data)
         msg_cnt = Message.objects.count()
         self.assertEqual(msg_cnt, old_msg_cnt)
 
@@ -81,7 +81,7 @@ class CopyCsvTestCase(test.TestCase):
         new_data = self.data[:new_data_cnt]
         for d in new_data:
             d['time'] = d['time']-timedelta(1)
-        copy_data(new_data)
+        _copy_data(new_data)
         shipinfos_cnt = ShipInfos.objects.count()
         self.assertEqual(shipinfos_cnt, old_shipinfos_cnt)
 
@@ -92,7 +92,7 @@ class CopyCsvTestCase(test.TestCase):
         new_data = self.data[:new_data_cnt]
         for d in new_data:
             d['time'] = d['time']+timedelta(1)
-        copy_data(new_data)
+        _copy_data(new_data)
         msg_cnt = Message.objects.count()
         self.assertEqual(msg_cnt, old_msg_cnt+new_data_cnt)
 
@@ -102,7 +102,7 @@ class CopyCsvTestCase(test.TestCase):
         new_data = self.data[:new_data_cnt]
         for d in new_data:
             d['time'] = d['time']+timedelta(1)
-        copy_data(new_data)
+        _copy_data(new_data)
         recent_message = (Message.objects.order_by('mmsi', '-time').
                           distinct('mmsi'))
         all_times = recent_message.values('time', 'mmsi__time')

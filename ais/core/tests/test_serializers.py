@@ -1,9 +1,8 @@
 from datetime import datetime, timezone
-import unittest
 from django import test
 from django.contrib.gis.geos import Point
 
-from core.serializers.json import redis_object_hook, default_redis_encoder
+from core.serializers.json import object_decoder, default_encoder
 
 
 class JsonSerializerTestCase(test.SimpleTestCase):
@@ -11,7 +10,7 @@ class JsonSerializerTestCase(test.SimpleTestCase):
         self.timestamp = 100000
         self.coords = (10.5, -10.5)
 
-    def test_default_redis_encoder(self) -> None:
+    def test_default_encoder(self) -> None:
         d = datetime.fromtimestamp(self.timestamp, tz=timezone.utc)
         expected_time_obj = dict(__datetime__=True, utctimestamp=self.timestamp)
 
@@ -21,13 +20,13 @@ class JsonSerializerTestCase(test.SimpleTestCase):
         class NotSerializable:
             pass
 
-        self.assertEqual(default_redis_encoder(d), expected_time_obj)
-        self.assertEqual(default_redis_encoder(p), expected_point_obj)
+        self.assertEqual(default_encoder(d), expected_time_obj)
+        self.assertEqual(default_encoder(p), expected_point_obj)
 
         with self.assertRaises(TypeError):
-            default_redis_encoder(NotSerializable())
+            default_encoder(NotSerializable())
 
-    def test_redis_object_hook(self) -> None:
+    def test_object_decoder(self) -> None:
         time_obj = dict(__datetime__=True, utctimestamp=self.timestamp)
         expected_datetime = datetime.fromtimestamp(
             self.timestamp, tz=timezone.utc)
@@ -37,6 +36,6 @@ class JsonSerializerTestCase(test.SimpleTestCase):
 
         another_obj = dict(another="obj")
 
-        self.assertEqual(redis_object_hook(time_obj), expected_datetime)
-        self.assertEqual(redis_object_hook(point_obj), expected_point)
-        self.assertEqual(redis_object_hook(another_obj), another_obj)
+        self.assertEqual(object_decoder(time_obj), expected_datetime)
+        self.assertEqual(object_decoder(point_obj), expected_point)
+        self.assertEqual(object_decoder(another_obj), another_obj)
