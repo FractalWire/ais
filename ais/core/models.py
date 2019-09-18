@@ -145,12 +145,6 @@ class Message(BaseInfos):
                 name='core_message_uniq_mmsi_time'
             )
         ]
-        indexes = [
-            models.Index(
-                fields=['mmsi', '-time'],
-                name='core_message_mmsi_timedesc_idx'
-            ),
-        ]
 
 
 def copy_csv(f: TextIOBase, sep: str = '|', null: str = '',
