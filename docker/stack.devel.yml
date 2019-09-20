@@ -1,0 +1,33 @@
+version: "3.7"
+services:
+    db:
+        image: postgres-ais
+        # restart: always
+        volumes:
+            - db-data:/var/lib/postgresql/data
+        networks:
+            - backend
+        deploy:
+            placement:
+                constraints:
+                    - node.role == manager
+        environment:
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: postgres
+    aisreceiver:
+        image: ais
+        networks:
+            - backend
+        command: ["/init.sh", "startservice"]
+        environment:
+            POSTGRES_HOST: db
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: postgres
+        # not supported for docker swarm
+        # depends_on:
+        #     - db
+
+networks:
+    backend:
+volumes:
+    db-data:

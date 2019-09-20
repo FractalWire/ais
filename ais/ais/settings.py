@@ -79,13 +79,18 @@ WSGI_APPLICATION = 'ais.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/2.2/ref/settings/#databases
 
+def environ_or_default(env_name: str, default: str) -> str:
+    """Get environment variable or return a default value"""
+    return os.environ[env_name] if env_name in os.environ else default
+
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.contrib.gis.db.backends.postgis',
         'NAME': 'ais',
-        'USER': 'postgres',
-        'PASSWORD': 'postgres',
-        # 'HOST': '127.0.0.1',
+        'USER': environ_or_default('POSTGRES_USER', 'postgres'),
+        'PASSWORD': environ_or_default('POSTGRES_PASSWORD', 'postgres'),
+        'HOST': environ_or_default('POSTGRES_HOST', ''),
         'PORT': '5432',
     }
 }
