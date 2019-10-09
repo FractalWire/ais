@@ -10,10 +10,15 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/2.2/ref/settings/
 """
 
+import sys
 import os
 import csv
 
 import yaml
+
+import logging
+from logformat import StyleAdapter
+
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -137,6 +142,17 @@ STATIC_URL = '/static/'
 # Configure logging
 with open("logconfig.yml") as f:
     LOGGING = yaml.load(f, Loader=yaml.FullLoader)
+
+logger = StyleAdapter(logging.getLogger(__name__))
+
+
+# TODO: Maybe not in settings ?
+def handle_unhandled_exception(type_, value, traceback):
+    """Called when an unhandled exception happened"""
+    logger.critical("Unhandled exception", exc_info=(type_, value, traceback))
+
+
+sys.excepthook = handle_unhandled_exception
 
 # REDIS parameters, OBSOLETE
 REDIS_CONF = {
