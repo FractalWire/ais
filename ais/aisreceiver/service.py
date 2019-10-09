@@ -67,10 +67,10 @@ def update_db() -> None:
     f.close()
 
     # TODO: Maybe only useful in DEBUG mode...
-    logger.debug("{} new messages added to the database, {} discarded",
-                 new_messages, total_messages-new_messages)
-    logger.debug("{} new ship infos added to the database, {} discarded",
-                 new_shipinfos, total_messages-new_shipinfos)
+    logger.info("{} new messages added to the database, {} discarded",
+                new_messages, total_messages-new_messages)
+    logger.info("{} new ship infos added to the database, {} discarded",
+                new_shipinfos, total_messages-new_shipinfos)
 
     logger.info('database updated')
     logger.info("------------------------------")

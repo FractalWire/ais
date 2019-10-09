@@ -6,11 +6,6 @@ from django.contrib.gis.geos import Point
 
 from core.models import AisData, BaseInfos, Message, ShipInfos, _copy_data
 
-import logging
-from logformat import StyleAdapter
-
-logger = StyleAdapter(logging.getLogger(__name__))
-
 
 class CopyCsvTestCase(test.TestCase):
     def random_AisData(self, mmsi, time) -> AisData:

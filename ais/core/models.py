@@ -1,7 +1,5 @@
 from __future__ import annotations
 from typing import Tuple, Dict, Any, List
-from logformat import StyleAdapter
-import logging
 from typing import TYPE_CHECKING
 import io
 import csv
@@ -19,6 +17,9 @@ from core.serializers import json as js
 from core.serializers import csv as cs
 
 from ais.settings import DIALECT_NAME
+
+import logging
+from logformat import StyleAdapter
 
 if TYPE_CHECKING:
     from django.db.models.query import RawQuerySet, QuerySet

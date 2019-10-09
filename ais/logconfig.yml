@@ -9,7 +9,7 @@ formatters:
 handlers:
     precise:
         class: logging.FileHandler
-        formatter: brief
+        formatter: default
         filename: logs/ais.log
         mode: w
         level: INFO
@@ -36,6 +36,9 @@ loggers:
     core:
         level: DEBUG
         handlers: [core, console]
+    ais:
+        level: DEBUG
+        handlers: [precise, console]
 root:
     level: INFO
     handlers: [precise]

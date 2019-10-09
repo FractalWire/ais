@@ -3,5 +3,6 @@ django>=2.2,<2.3
 psycopg2>=2.8,<2.9
 requests>=2.22,<2.23
 msgpack>=0.6,<0.7
+
 # redis>=3.3,<3.4
 # hiredis>=1.0,<1.1

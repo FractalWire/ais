@@ -145,6 +145,10 @@ with open("logconfig.yml") as f:
 
 logger = StyleAdapter(logging.getLogger(__name__))
 
+# Disable logging for test
+if len(sys.argv) > 1 and sys.argv[1] == 'test':
+    logging.disable(logging.CRITICAL)
+
 
 # TODO: Maybe not in settings ?
 def handle_unhandled_exception(type_, value, traceback):
@@ -155,10 +159,10 @@ def handle_unhandled_exception(type_, value, traceback):
 sys.excepthook = handle_unhandled_exception
 
 # REDIS parameters, OBSOLETE
-REDIS_CONF = {
-    'host': 'localhost',
-    'port': 6379,
-}
+# REDIS_CONF = {
+#     'host': 'localhost',
+#     'port': 6379,
+# }
 
 # Configure csv dialect
 DIALECT_NAME = 'postgres'

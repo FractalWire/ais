@@ -215,8 +215,8 @@ def api_access() -> None:
                 aisbuffer.messages.update(messages)
                 # aisbuffer.last_messages.update(messages)
                 with aisbuffer.messages.lock:
-                    logger.debug("{} aismessages waiting for postgres",
-                                 len(aisbuffer.messages.data))
+                    logger.info("{} aismessages waiting for postgres",
+                                len(aisbuffer.messages.data))
                 logger.info("buffer updated")
 
                 # cleanup, we're in a loop
