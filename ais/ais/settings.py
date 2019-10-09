@@ -95,7 +95,7 @@ DATABASES = {
         'NAME': 'ais',
         'USER': environ_or_default('POSTGRES_USER', 'postgres'),
         'PASSWORD': environ_or_default('POSTGRES_PASSWORD', 'postgres'),
-        'HOST': environ_or_default('POSTGRES_HOST', ''),
+        'HOST': environ_or_default('POSTGRES_HOST', '127.0.0.1'),
         'PORT': '5432',
     }
 }
