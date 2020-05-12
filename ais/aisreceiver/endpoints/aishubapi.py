@@ -6,6 +6,7 @@ import requests
 import gzip
 import json
 import threading
+import queue
 from io import BytesIO
 from enum import Flag, IntFlag
 from datetime import datetime, timezone
@@ -13,6 +14,7 @@ from datetime import datetime, timezone
 from django.contrib.gis.geos import Point
 
 from core.models import BaseInfos
+from core import service
 
 from aisreceiver.app_settings import AISHUBAPI_WINDOW
 from aisreceiver import aisbuffer
@@ -52,6 +54,7 @@ format_ = Format.AIS_ENCODING
 output = Output.JSON
 compression = Compression.GZIP
 
+# TODO: Remove that from git !
 parameters = {
     'username': 'AH_2575_E34F276C',
     'format': format_.value,
@@ -190,16 +193,22 @@ def extract_messages(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return message_list
 
 
-run = True
-should_stop = threading.Condition()
+class AisHubService(service.BaseService):
 
+    def run(self) -> None:
+        """Fetch data from AisHub at regular interval and store it in a buffer"""
 
-def api_access() -> None:
-    """Fetch data from AisHub at regular interval and store it in a buffer"""
+        logger.info("aishub service started")
 
-    with should_stop:
         data = []
-        while run:
+        while True:
+            try:
+                _, evt = self.evt_channel.get(timeout=AISHUBAPI_WINDOW)
+                if evt == service.Event.STOP:
+                    break
+            except queue.Empty:
+                pass
+
             logger.debug('')
             logger.debug("starting api request")
             try:
@@ -223,19 +232,4 @@ def api_access() -> None:
                 messages.clear()
                 data.clear()
 
-            should_stop.wait(timeout=AISHUBAPI_WINDOW)
-
-
-service_thread = threading.Thread(target=api_access)
-
-
-def start() -> None:
-    """Start aishubapi service"""
-    service_thread.start()
-
-
-def stop() -> None:
-    """Stop aishubapi service"""
-    # run = False
-    with should_stop:
-        should_stop.notify_all()
+        logger.info("aishub service stopped")
