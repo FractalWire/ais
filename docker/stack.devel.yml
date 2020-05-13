@@ -28,7 +28,7 @@ services:
         image: ais
         networks:
             - backend
-        command: ["/init.sh", "startservice"]
+        command: ["/init.sh", "startservices"]
         environment:
             POSTGRES_HOST: db
             POSTGRES_USER: postgres
