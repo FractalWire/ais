@@ -25,6 +25,12 @@ handlers:
         filename: logs/aisreceiver.log
         mode: w
         level: DEBUG
+    geoserver:
+        class: extras.logging.FileHandler
+        formatter: brief
+        filename: logs/geoserver.log
+        mode: w
+        level: DEBUG
     console:
         class: logging.StreamHandler
         formatter: brief
@@ -33,6 +39,9 @@ loggers:
     aisreceiver:
         level: DEBUG
         handlers: [aisreceiver, console]
+    geoserver:
+        level: DEBUG
+        handlers: [geoserver, console]
     core:
         level: DEBUG
         handlers: [core, console]

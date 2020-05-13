@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'django.contrib.gis',
     'aisreceiver.apps.AisreceiverConfig',
     'core.apps.CoreConfig',
+    'geoserver.apps.GeoserverConfig',
 ]
 
 MIDDLEWARE = [

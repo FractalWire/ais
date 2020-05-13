@@ -62,6 +62,7 @@ class BaseInfosQuerySet(models.QuerySet):
         TODO: this won't work well above the pole... 80 to 95 is impossible for
         example
         TODO: test
+        OBSOLETE: with geoserver
         """
         def create_poly(xmin: float, ymin: float,
                         xmax: float, ymax: float) -> Polygon:
@@ -158,16 +159,18 @@ class BaseInfos(models.Model, metaclass=AdditionalMeta):
         abstract = True
 
     @classmethod
-    def from_msgpack(cls, msgpack_object: bytes) -> Message:
-        """Factory to build a BaseMessage from a msgpack object"""
+    def from_msgpack(cls, msgpack_object: bytes) -> BaseInfos:
+        """Factory to build a BaseInfos from a msgpack object
+        NOT IN USE"""
         msg_dict = msgpack.unpackb(msgpack_object,
                                    object_hook=ms.object_decoder,
                                    raw=False)
         return cls(**msg_dict)
 
     @classmethod
-    def from_json(cls, json_object: str) -> Message:
-        """Factory to build a BaseMessage from a json object"""
+    def from_json(cls, json_object: str) -> BaseInfos:
+        """Factory to build a BaseInfos from a json object
+        NOT IN USE"""
         msg_dict = json.loads(json_object,
                               object_hook=js.object_decoder)
         return cls(**msg_dict)
@@ -215,6 +218,30 @@ class ShipInfos(BaseInfos):
     """Concrete class for the table holding the ship informations sent by AIS"""
     mmsi = models.IntegerField(primary_key=True)
 
+    @property
+    def ship_wkt(self) -> str:
+        """Compute the ship shape as a wkt string"""
+        bow, stern = [
+            0 if e == 511 else e for e in (self.dim_bow, self.dim_stern)
+        ]
+        port, starboard = [
+            0 if e == 63 else e for e in (self.dim_port, self.dim_starboard)
+        ]
+
+        if bow+stern == 0:
+            bow = stern = 5
+        if port+starboard == 0:
+            port = starboard = 2
+
+        middle = round((starboard-port)/2, 3)
+        before_bow = round(0.8*bow, 3)
+        wkt = (
+            f"POLYGON((-{port} -{stern}, -{port} {before_bow}, "
+            f"{middle} {bow}, {starboard} {before_bow}, "
+            f"{starboard} -{stern}, -{port} -{stern}))"
+        )
+        return wkt
+
 
 class MessageQuerySet(BaseInfosQuerySet):
     def history(self, mmsi: int, max_message: int = None) -> QuerySet:
@@ -244,6 +271,7 @@ def copy_csv(f: io.TextIOBase, sep: str = '|', null: str = '',
              escape='\\', quote='\"') -> Tuple[int, int]:
     """Copy Message in f in a csv format to a temporary table then update
     core_message and core_shipinfos tables"""
+
     with connections['default'].cursor() as cursor:
         # Create temp table
         table_name = Message._meta.db_table
