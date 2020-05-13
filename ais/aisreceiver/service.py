@@ -8,7 +8,8 @@ import queue
 # import shutil
 
 from core.models import copy_csv
-from core import service
+from core.service import BaseService, ServiceEvent
+from core.mixins import PubSubMixin
 
 from .endpoints.aishubapi import AisHubService
 from .app_settings import POSTGRES_WINDOW
@@ -20,11 +21,7 @@ from logformat import StyleAdapter
 logger = StyleAdapter(logging.getLogger(__name__))
 
 
-class AisService(service.BaseService):
-
-    def __init__(self):
-        super().__init__()
-        self.subscribed_channels: Set[queue.Queue] = {}
+class AisService(PubSubMixin, BaseService):
 
     def run(self) -> None:
         logger.info("==== Starting AIS service ====")
@@ -40,34 +37,22 @@ class AisService(service.BaseService):
         # 2) every X minutes :
         #    - update database from AisBuffer
         #    - flush AisBuffer
+        evt = None
         while True:
-            try:
-                _, evt = self.evt_channel.get(timeout=POSTGRES_WINDOW)
-                if evt == service.Event.STOP:
-                    break
-            except queue.Empty:
-                pass
+            if evt == ServiceEvent.STOP:
+                break
 
             # TODO: sleep time do not take into account update_db process time
             self.update_db()
 
-            self.publish((1, service.Event.DB_UPDATED))
+            self.publish((1, ServiceEvent.DB_UPDATED))
+            evt = self.get_channel_evt(timeout=POSTGRES_WINDOW)
 
         # 3) stop and wait for aishub_service to terminate
         aishub_service.stop()
         aishub_service.thread.join()
 
         logger.info("==== AIS service stopped ====")
-
-    def subscribe(self, channel: queue.Queue) -> None:
-        self.subscribed_channels.add(channel)
-
-    def unsubscribe(self, channel: queue.Queue) -> None:
-        self.subscribed_channels.discard(channel)
-
-    def publish(self, val: Any) -> None:
-        for channel in self.subscribed_channels:
-            channel.put(val)
 
     def update_db(self) -> None:
         """Update the database using messages stored in buffer"""
@@ -94,5 +79,5 @@ class AisService(service.BaseService):
         logger.info("{} new ship infos added to the database, {} discarded",
                     new_shipinfos, total_messages-new_shipinfos)
 
-        logger.info('database updated')
+        logger.info('core database updated')
         logger.info("------------------------------")

@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from django.contrib.gis.geos import Point
 
 from core.models import BaseInfos
-from core import service
+from core.service import BaseService, ServiceEvent
 
 from aisreceiver.app_settings import AISHUBAPI_WINDOW
 from aisreceiver import aisbuffer
@@ -193,7 +193,7 @@ def extract_messages(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return message_list
 
 
-class AisHubService(service.BaseService):
+class AisHubService(BaseService):
 
     def run(self) -> None:
         """Fetch data from AisHub at regular interval and store it in a buffer"""
@@ -201,13 +201,10 @@ class AisHubService(service.BaseService):
         logger.info("aishub service started")
 
         data = []
+        evt = None
         while True:
-            try:
-                _, evt = self.evt_channel.get(timeout=AISHUBAPI_WINDOW)
-                if evt == service.Event.STOP:
-                    break
-            except queue.Empty:
-                pass
+            if evt == ServiceEvent.STOP:
+                break
 
             logger.debug('')
             logger.debug("starting api request")
@@ -231,5 +228,7 @@ class AisHubService(service.BaseService):
                 # cleanup, we're in a loop
                 messages.clear()
                 data.clear()
+
+            evt = self.get_channel_evt(AISHUBAPI_WINDOW)
 
         logger.info("aishub service stopped")
