@@ -15,6 +15,7 @@ from django.contrib.gis.geos import Polygon
 from core.serializers import msgpack as ms
 from core.serializers import json as js
 from core.serializers import csv as cs
+from core import shiptype
 
 from ais.settings import DIALECT_NAME
 
@@ -29,6 +30,30 @@ logger = StyleAdapter(logging.getLogger(__name__))
 
 """The raw ais data in a dictionary form"""
 AisData = Dict[str, Any]
+
+
+class ShipTypeManager(models.Manager):
+    def prepopulate(self) -> None:
+        st_list = [self.model(
+            st.type,
+            st.short_name,
+            st.name,
+            st.summary,
+            st.details
+        ) for st in shiptype.shiptype_generator()]
+
+        self.bulk_create(st_list)
+
+
+class ShipType(models.Model):
+    type_id = models.IntegerField(primary_key=True)
+    short_name = models.CharField(max_length=128, null=False, blank=False)
+    name = models.CharField(max_length=128, null=False, blank=False)
+    summary = models.CharField(max_length=128, null=False, blank=False)
+    details = models.CharField(
+        max_length=512, null=True, blank=True, default='')
+
+    objects = ShipTypeManager()
 
 
 class AisMeta:
