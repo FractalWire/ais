@@ -23,7 +23,7 @@ class GeometryManager(models.Manager):
             return geom
 
         def set_dimensions(geom: ShipGeometries) -> ShipGeometries:
-            geom.height = geom.mmsi.height
+            geom.length = geom.mmsi.length
             geom.width = geom.mmsi.width
             return geom
 
@@ -69,8 +69,8 @@ class ShipGeometries(models.Model):
     """Stores every ship related geometries useful for geoserver rendering"""
     mmsi = models.OneToOneField(ShipInfos, primary_key=True,
                                 on_delete=models.CASCADE, db_column='mmsi')
+    length = models.IntegerField(null=False, blank=True, default=0)
     width = models.IntegerField(null=False, blank=True, default=0)
-    height = models.IntegerField(null=False, blank=True, default=0)
     wkt_shape = models.CharField(max_length=256, blank=True, default='')
     path = models.LineStringField(geography=True, null=True, blank=True,
                                   default=None)

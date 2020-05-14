@@ -122,7 +122,7 @@ class ShipInfos(BaseInfos):
     # TODO: normalize other fields
     mmsi = models.IntegerField(primary_key=True)
 
-    DEFAULT_HEIGHT = 10
+    DEFAULT_LENGTH = 10
     DEFAULT_WIDTH = 4
 
     def normalize_dims(self) -> Tuple(float, float, float, float):
@@ -132,7 +132,7 @@ class ShipInfos(BaseInfos):
             0 if e == 511 else e for e in (self.dim_bow, self.dim_stern)
         ]
         if bow+stern == 0:
-            bow = stern = self.DEFAULT_HEIGHT / 2
+            bow = stern = self.DEFAULT_LENGTH / 2
 
         port, starboard = [
             0 if e == 63 else e for e in (self.dim_port, self.dim_starboard)
@@ -148,7 +148,7 @@ class ShipInfos(BaseInfos):
         bow, stern, port, starboard = self.normalize_dims()
 
         middle = round((starboard-port)/2, 3)
-        before_bow = round(0.8*bow, 3)
+        before_bow = round(bow - (0.2*(bow+stern)), 3)
         wkt = (
             f"POLYGON((-{port} -{stern}, -{port} {before_bow}, "
             f"{middle} {bow}, {starboard} {before_bow}, "
@@ -157,8 +157,8 @@ class ShipInfos(BaseInfos):
         return wkt
 
     @property
-    def height(self) -> int:
-        """Return the height of the ship"""
+    def length(self) -> int:
+        """Return the length of the ship"""
         bow, stern, _, _ = self.normalize_dims()
         return bow+stern
 
