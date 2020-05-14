@@ -119,22 +119,33 @@ class BaseInfos(models.Model, metaclass=AdditionalMeta):
 
 class ShipInfos(BaseInfos):
     """Concrete class for the table holding the ship informations sent by AIS"""
+    # TODO: normalize other fields
     mmsi = models.IntegerField(primary_key=True)
+
+    DEFAULT_HEIGHT = 10
+    DEFAULT_WIDTH = 4
+
+    def normalize_dims(self) -> Tuple(float, float, float, float):
+        """Return the dimensions of the boat with default value when missing
+        The order is (bow, stern, port, starboard)"""
+        bow, stern = [
+            0 if e == 511 else e for e in (self.dim_bow, self.dim_stern)
+        ]
+        if bow+stern == 0:
+            bow = stern = self.DEFAULT_HEIGHT / 2
+
+        port, starboard = [
+            0 if e == 63 else e for e in (self.dim_port, self.dim_starboard)
+        ]
+        if port+starboard == 0:
+            port = starboard = self.DEFAULT_WIDTH / 2
+
+        return (bow, stern, port, starboard)
 
     @property
     def ship_wkt(self) -> str:
         """Compute the ship shape as a wkt string"""
-        bow, stern = [
-            0 if e == 511 else e for e in (self.dim_bow, self.dim_stern)
-        ]
-        port, starboard = [
-            0 if e == 63 else e for e in (self.dim_port, self.dim_starboard)
-        ]
-
-        if bow+stern == 0:
-            bow = stern = 5
-        if port+starboard == 0:
-            port = starboard = 2
+        bow, stern, port, starboard = self.normalize_dims()
 
         middle = round((starboard-port)/2, 3)
         before_bow = round(0.8*bow, 3)
@@ -144,6 +155,18 @@ class ShipInfos(BaseInfos):
             f"{starboard} -{stern}, -{port} -{stern}))"
         )
         return wkt
+
+    @property
+    def height(self) -> int:
+        """Return the height of the ship"""
+        bow, stern, _, _ = self.normalize_dims()
+        return bow+stern
+
+    @property
+    def width(self) -> int:
+        """Return the width of the ship"""
+        _, _, port, starboard = self.normalize_dims()
+        return port+starboard
 
 
 class MessageQuerySet(models.QuerySet):

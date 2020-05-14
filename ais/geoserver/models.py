@@ -22,11 +22,16 @@ class GeometryManager(models.Manager):
             # TODO: implement that
             return geom
 
+        def set_dimensions(geom: ShipGeometries) -> ShipGeometries:
+            geom.height = geom.mmsi.height
+            geom.width = geom.mmsi.width
+            return geom
+
         def set_last_update(geom: ShipGeometries) -> ShipGeometries:
             geom.last_update = geom.mmsi.time
             return geom
 
-        return set_last_update(set_path(set_shape(geom)))
+        return set_last_update(set_dimensions(set_path(set_shape(geom))))
 
     def ship_without_geometries(self) -> models.QuerySet:
         return ShipInfos.objects.filter(shipgeometries__isnull=True)
@@ -64,6 +69,8 @@ class ShipGeometries(models.Model):
     """Stores every ship related geometries useful for geoserver rendering"""
     mmsi = models.OneToOneField(ShipInfos, primary_key=True,
                                 on_delete=models.CASCADE, db_column='mmsi')
+    width = models.IntegerField(null=False, blank=True, default=0)
+    height = models.IntegerField(null=False, blank=True, default=0)
     wkt_shape = models.CharField(max_length=256, blank=True, default='')
     path = models.LineStringField(geography=True, null=True, blank=True,
                                   default=None)
