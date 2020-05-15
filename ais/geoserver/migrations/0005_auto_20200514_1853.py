@@ -6,7 +6,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('geoserver', '0005_geoserver_view'),
+        ('geoserver',  '0004_auto_20200514_1522'),
     ]
 
     operations = [

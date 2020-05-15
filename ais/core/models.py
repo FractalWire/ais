@@ -123,7 +123,8 @@ class ShipInfos(BaseInfos):
     mmsi = models.IntegerField(primary_key=True)
 
     DEFAULT_LENGTH = 10
-    DEFAULT_WIDTH = 4
+    DEFAULT_WIDTH = 3
+    DEFAULT_WKT = 'POLYGON((-0.5 -1, 0 1, 0.5 -1, 0 -0.75, -0.5 -1))'
 
     def normalize_dims(self) -> Tuple(float, float, float, float):
         """Return the dimensions of the boat with default value when missing
