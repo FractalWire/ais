@@ -195,7 +195,7 @@ class Message(BaseInfos):
 
 
 def copy_csv(f: io.TextIOBase, sep: str = '|', null: str = '',
-             escape='\\', quote='\"') -> Tuple[int, int]:
+             escape='\\', quote='\"', keep_history=True) -> Tuple[int, int]:
     """Copy Message in f in a csv format to a temporary table then update
     core_message and core_shipinfos tables"""
 
@@ -257,23 +257,25 @@ def copy_csv(f: io.TextIOBase, sep: str = '|', null: str = '',
 
         logger.debug('UPSERT ended')
 
-        # Insert into core_message table
-        table_name = Message._meta.db_table
-        fields_name = Message._aismeta.sorted_fields_name
-        fields_name_str = ','.join(fields_name)
-        insert_query = (
-            'INSERT INTO {0} ({1})'
-            ' SELECT {1} FROM {2}'
-            ' ON CONFLICT DO NOTHING'.format(
-                table_name,
-                fields_name_str,
-                tmp_table_name
+        new_messages = 0
+        if keep_history:
+            # Insert into core_message table
+            table_name = Message._meta.db_table
+            fields_name = Message._aismeta.sorted_fields_name
+            fields_name_str = ','.join(fields_name)
+            insert_query = (
+                'INSERT INTO {0} ({1})'
+                ' SELECT {1} FROM {2}'
+                ' ON CONFLICT DO NOTHING'.format(
+                    table_name,
+                    fields_name_str,
+                    tmp_table_name
+                )
             )
-        )
-        cursor.execute(insert_query)
-        new_messages = cursor.rowcount
+            cursor.execute(insert_query)
+            new_messages = cursor.rowcount
 
-        logger.debug('INSERT ended')
+            logger.debug('INSERT ended')
 
         # cleanup
         drop_tmp_table = 'DROP TABLE {0}'.format(tmp_table_name)

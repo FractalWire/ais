@@ -13,3 +13,6 @@ POSITION_TTL = 6*60*60  # in seconds
 
 # Redis aismessage keys ttl must be: window < ttl < 2*window
 AISMESSAGE_TTL = int(1.3*POSTGRES_WINDOW)
+
+# If set to False, shipinfos history won't be saved
+KEEP_SHIPINFOS_HISTORY = False

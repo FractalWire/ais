@@ -12,7 +12,7 @@ from core.service import BaseService, ServiceEvent
 from core.mixins import PubSubMixin
 
 from .endpoints.aishubapi import AisHubService
-from .app_settings import POSTGRES_WINDOW
+from .app_settings import POSTGRES_WINDOW, KEEP_SHIPINFOS_HISTORY
 from . import aisbuffer
 
 import logging
@@ -70,7 +70,8 @@ class AisService(PubSubMixin, BaseService):
 
         logger.debug('starting to COPY')
         f.seek(0)
-        new_messages, new_shipinfos = copy_csv(f)
+        new_messages, new_shipinfos = copy_csv(
+            f, keep_history=KEEP_SHIPINFOS_HISTORY)
         f.close()
 
         # TODO: Maybe only useful in DEBUG mode...
