@@ -1,7 +1,7 @@
 #!/bin/bash
 # build the docker images
 
-docker build -t ais -f docker/ais/Dockerfile.devel .
+docker build -t ais_back -f docker/ais_back/Dockerfile.devel .
 
 echo ''
 

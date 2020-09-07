@@ -25,7 +25,7 @@ services:
             - -c
             - 'tcp_keepalives_count=10'
     aisreceiver:
-        image: ais
+        image: ais_back
         networks:
             - backend
         command: ["/init.sh", "startservices"]
@@ -36,20 +36,20 @@ services:
         # not supported for docker swarm
         # depends_on:
         #     - db
-    geoserver:
-        image: kartoza/geoserver
-        volumes:
-            - geoserver-data:/opt/geoserver/data_dir
-        networks:
-            - backend
-        environment:
-            STABLE_EXTENSIONS: css-plugin
-        ports:
-            - "8600:8080"
+    # geoserver:
+    #     image: kartoza/geoserver
+    #     volumes:
+    #         - geoserver-data:/opt/geoserver/data_dir
+    #     networks:
+    #         - backend
+    #     environment:
+    #         STABLE_EXTENSIONS: css-plugin
+    #     ports:
+    #         - "8600:8080"
 
 networks:
     backend:
 volumes:
     db-data:
-    geoserver-data:
-        external: true
+    # geoserver-data:
+    #     external: true

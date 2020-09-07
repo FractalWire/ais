@@ -1,0 +1,6 @@
+[submodule "ais_back"]
+	path = ais_back
+	url = git@github.com:FractalWire/ais_back.git
+[submodule "ais_front"]
+	path = ais_front
+	url = git@github.com:FractalWire/ais_front.git

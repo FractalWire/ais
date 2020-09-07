@@ -13,7 +13,7 @@ ENV LANG fr_FR.UTF-8
 ENV LC_ALL fr_FR.UTF-8
 
 # update system and install requirements
-COPY ./requirements /requirements
+COPY ./ais_back/requirements /requirements
 # RUN echo "http://nl.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories \
 #     && apk update \
 #     && apk add binutils geos gdal proj \
@@ -27,14 +27,14 @@ RUN apt-get install -y binutils libproj-dev gdal-bin libgeos-dev \
     && pip install -r /requirements/dev.txt \
     && apt-get autoremove -y gcc python3-dev musl-dev
 
-COPY ./docker/ais/init.sh /init.sh
+COPY ./docker/ais_back/init.sh /init.sh
 RUN chmod +x /init.sh && apt-get install -y inetutils-ping
 
 RUN mkdir -p /app/ais \
     && useradd ais
 
 WORKDIR /app/ais
-COPY ./ais .
+COPY ./ais_back .
 
 RUN chown -R ais:ais .
 
