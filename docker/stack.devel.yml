@@ -1,7 +1,7 @@
 version: "3.7"
 services:
     db:
-        image: postgres-ais
+        image: ais_postgres
         # restart: always
         volumes:
             - db-data:/var/lib/postgresql/data
@@ -24,7 +24,7 @@ services:
             - 'tcp_keepalives_interval=30'
             - -c
             - 'tcp_keepalives_count=10'
-    aisreceiver:
+    receiver:
         image: ais_back
         networks:
             - backend
@@ -33,9 +33,18 @@ services:
             POSTGRES_HOST: db
             POSTGRES_USER: postgres
             POSTGRES_PASSWORD: postgres
-        # not supported for docker swarm
-        # depends_on:
-        #     - db
+    app:
+        image: ais_front
+        volumes:
+            - ais_front:/app
+        networks:
+            - backend
+            - frontend
+        command: ["/init.sh"]
+        environment:
+            POSTGRES_HOST: db
+        ports:
+            - "4000:4000"
     # geoserver:
     #     image: kartoza/geoserver
     #     volumes:
@@ -49,7 +58,10 @@ services:
 
 networks:
     backend:
+    frontend:
 volumes:
     db-data:
+    ais_front:
+        external: true
     # geoserver-data:
     #     external: true

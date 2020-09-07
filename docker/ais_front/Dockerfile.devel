@@ -1,0 +1,19 @@
+FROM elixir:slim
+
+RUN apt-get update \
+    && apt-get install -y locales \
+    && echo 'fr_FR.UTF-8 UTF-8' > /etc/locale.gen \
+    && echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen \
+    && locale-gen
+ENV LANG fr_FR.UTF-8
+ENV LC_ALL fr_FR.UTF-8
+
+COPY ./docker/ais_front/init.sh /init.sh
+RUN chmod +x /init.sh \
+    && apt-get install -y netcat inotify-tools
+
+WORKDIR /app
+
+RUN mix do local.hex --force, local.rebar --force
+
+CMD ["init.sh"]
