@@ -8,12 +8,19 @@ RUN apt-get update \
 ENV LANG fr_FR.UTF-8
 ENV LC_ALL fr_FR.UTF-8
 
-COPY ./docker/ais_front/init.sh /init.sh
-RUN chmod +x /init.sh \
-    && apt-get install -y netcat inotify-tools
+RUN apt-get install -y netcat inotify-tools curl \
+    && (curl -sL https://deb.nodesource.com/setup_14.x | bash -) \
+    && apt-get install -y nodejs
 
 WORKDIR /app
-
 RUN mix do local.hex --force, local.rebar --force
 
-CMD ["init.sh"]
+# WORKDIR /app/assets
+# RUN npm install \
+#     && node node_modules/webpack/bin/webpack.js --mode development
+
+COPY ./docker/ais_front/init.sh /init.sh
+RUN chmod +x /init.sh
+
+
+CMD ["/init.sh"]

@@ -14,4 +14,18 @@ cd /app
 
 echo ''
 
-mix do deps.get, ecto.setup, phx.server
+mix do deps.get, ecto.setup
+
+echo
+
+cd /app/assets
+
+npm install \
+    && node node_modules/webpack/bin/webpack.js --mode development
+
+echo
+echo 'Launching the website now...'
+
+cd /app
+
+mix phx.server
