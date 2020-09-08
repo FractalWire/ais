@@ -23,6 +23,9 @@ services:
             - 'tcp_keepalives_interval=30'
             - -c
             - 'tcp_keepalives_count=10'
+        secrets:
+            - postgres_user
+            - postgres_password
     receiver:
         image: ais_back
         networks:
@@ -32,6 +35,14 @@ services:
             POSTGRES_HOST: db
             POSTGRES_USER: /run/secrets/postgres_user
             POSTGRES_PASSWORD: /run/secrets/postgres_password
+            DJANGO_SECRET: /run/secrets/django_secret
+            AISHUBAPI_USERNAME: /run/secrets/aishubapi_username
+        secrets:
+            - postgres_user
+            - postgres_password
+            - django_secret
+            - aishubapi_username
+
     app:
         image: ais_front
         volumes:
@@ -66,6 +77,10 @@ secrets:
         file: docker/secrets/prod/back_database_host.txt
     front_database_host:
         file: docker/secrets/prod/front_database_host.txt
+    django_secret:
+        file: docker/secrets/prod/django_secret.txt
+    aishubapi_username:
+        file: docker/secrets/prod/aishubapi_username.txt
 volumes:
     db-data:
     ais_front:
