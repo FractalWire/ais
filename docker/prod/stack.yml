@@ -1,0 +1,72 @@
+version: "3.7"
+services:
+    db:
+        image: ais_postgres
+        volumes:
+            - db-data:/var/lib/postgresql/data
+        networks:
+            - backend
+        ports:
+            - ":5432"
+        deploy:
+            placement:
+                constraints:
+                    - node.role == manager
+        environment:
+            POSTGRES_USER: /run/secrets/postgres_user
+            POSTGRES_PASSWORD: /run/secrets/postgres_password
+        command:
+            - postgres
+            - -c
+            - 'tcp_keepalives_idle=600'
+            - -c
+            - 'tcp_keepalives_interval=30'
+            - -c
+            - 'tcp_keepalives_count=10'
+    receiver:
+        image: ais_back
+        networks:
+            - backend
+        command: ["/init.sh", "startservices"]
+        environment:
+            POSTGRES_HOST: db
+            POSTGRES_USER: /run/secrets/postgres_user
+            POSTGRES_PASSWORD: /run/secrets/postgres_password
+    app:
+        image: ais_front
+        volumes:
+            - ais_front:/app
+        networks:
+            - backend
+            - frontend
+        command: ["/init.sh"]
+        environment:
+            POSTGRES_HOST: db
+            POSTGRES_USER: /run/secrets/postgres_user
+            POSTGRES_PASSWORD: /run/secrets/postgres_password
+            BACK_DATABASE_HOST: /run/secrets/back_database_host
+            FRONT_DATABASE_HOST: /run/secrets/front_database_host
+        ports:
+            - "80:80"
+        secrets:
+            - postgres_user
+            - postgres_password
+            - back_database_host
+            - front_database_host
+
+networks:
+    backend:
+    frontend:
+secrets:
+    postgres_user:
+        file: docker/secrets/prod/postgres_user.txt
+    postgres_password:
+        file: docker/secrets/prod/postgres_password.txt
+    back_database_host:
+        file: docker/secrets/prod/back_database_host.txt
+    front_database_host:
+        file: docker/secrets/prod/front_database_host.txt
+volumes:
+    db-data:
+    ais_front:
+        external: true
