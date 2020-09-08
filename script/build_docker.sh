@@ -1,12 +1,24 @@
 #!/bin/bash
 # build the docker images
 
-docker build -t ais_back -f docker/ais_back/Dockerfile.devel .
+ENV=[[ -z "$ENV" ]] && "devel" || "$ENV"
+
+case "$ENV" in
+    "devel"|"prod") ;;
+    *)
+        echo "ENV variable must be 'devel' or 'prod'"
+        exit 1
+        ;;
+esac
+
+docker build -t "ais_back:$ENV" -f "docker/$ENV/ais_back/Dockerfile" .
 
 echo ''
 
-docker build -t ais_front -f docker/ais_front/Dockerfile.devel .
+docker build -t "ais_front:$ENV" -f "docker/$ENV/ais_front/Dockerfile" .
 
 echo ''
 
-docker build -t ais_postgres -f docker/postgres/Dockerfile.devel .
+docker build -t "ais_postgres:$ENV" -f "docker/$ENV/postgres/Dockerfile" .
+
+exit 0
