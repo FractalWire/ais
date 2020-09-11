@@ -19,7 +19,7 @@ RUN mix do local.hex --force, local.rebar --force
 # RUN npm install \
 #     && node node_modules/webpack/bin/webpack.js --mode development
 
-COPY ./docker/ais_front/init.sh /init.sh
+COPY ./docker/devel/ais_front/init.sh /init.sh
 RUN chmod +x /init.sh
 
 

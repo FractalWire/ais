@@ -55,7 +55,7 @@ COPY --from=build --chown=nobody:nobody /app/_build/prod/rel/ais_front ./
 
 ENV HOME=/app
 
-COPY ./docker/ais_front/init.prod.sh /init.sh
+COPY ./docker/prod/ais_front/init.sh /init.sh
 RUN chmod +x /init.sh
 
 

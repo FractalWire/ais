@@ -9,4 +9,4 @@ RUN apt-get update \
 ENV LANG fr_FR.UTF-8
 ENV LC_ALL fr_FR.UTF-8
 
-COPY ./docker/postgres/*.sql /docker-entrypoint-initdb.d/
+COPY ./docker/prod/postgres/*.sql /docker-entrypoint-initdb.d/

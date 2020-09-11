@@ -27,7 +27,7 @@ RUN apt-get install -y binutils libproj-dev gdal-bin libgeos-dev \
     && pip install -r /requirements/dev.txt \
     && apt-get autoremove -y gcc python3-dev musl-dev
 
-COPY ./docker/ais_back/init.sh /init.sh
+COPY ./docker/prod/ais_back/init.sh /init.sh
 RUN chmod +x /init.sh && apt-get install -y inetutils-ping
 
 RUN mkdir -p /app/ais \
