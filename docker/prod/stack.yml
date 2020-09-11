@@ -1,7 +1,7 @@
 version: "3.7"
 services:
     db:
-        image: ais_postgres
+        image: ais_postgres:prod
         volumes:
             - db-data:/var/lib/postgresql/data
         networks:
@@ -27,7 +27,7 @@ services:
             - postgres_user
             - postgres_password
     receiver:
-        image: ais_back
+        image: ais_back:prod
         networks:
             - backend
         command: ["/init.sh", "startservices"]
@@ -42,16 +42,14 @@ services:
             - postgres_password
             - django_secret
             - aishubapi_username
-
     app:
-        image: ais_front
-        volumes:
-            - ais_front:/app
+        image: ais_front:prod
         networks:
             - backend
             - frontend
         command: ["/init.sh"]
         environment:
+            ELIXIR_SECRET: /run/secrets/elixir_secret
             POSTGRES_HOST: db
             POSTGRES_USER: /run/secrets/postgres_user
             POSTGRES_PASSWORD: /run/secrets/postgres_password
@@ -60,6 +58,7 @@ services:
         ports:
             - "80:80"
         secrets:
+            - elixir_secret
             - postgres_user
             - postgres_password
             - back_database_host
@@ -70,18 +69,18 @@ networks:
     frontend:
 secrets:
     postgres_user:
-        file: docker/secrets/prod/postgres_user.txt
+        file: ../../secrets/prod/postgres_user.txt
     postgres_password:
-        file: docker/secrets/prod/postgres_password.txt
+        file: ../../secrets/prod/postgres_password.txt
     back_database_host:
-        file: docker/secrets/prod/back_database_host.txt
+        file: ../../secrets/prod/back_database_host.txt
     front_database_host:
-        file: docker/secrets/prod/front_database_host.txt
+        file: ../../secrets/prod/front_database_host.txt
     django_secret:
-        file: docker/secrets/prod/django_secret.txt
+        file: ../../secrets/prod/django_secret.txt
+    elixir_secret:
+        file: ../../secrets/prod/elixir_secret.txt
     aishubapi_username:
-        file: docker/secrets/prod/aishubapi_username.txt
+        file: ../../secrets/prod/aishubapi_username.txt
 volumes:
     db-data:
-    ais_front:
-        external: true

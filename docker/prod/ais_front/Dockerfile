@@ -47,17 +47,16 @@ RUN apt-get install -y netcat
 
 WORKDIR /app
 
-RUN chown nobody:nobody /app
+RUN chown nobody:nogroup /app
 
-USER nobody:nobody
-
-COPY --from=build --chown=nobody:nobody /app/_build/prod/rel/ais_front ./
+COPY --from=build --chown=nobody:nogroup /app/_build/prod/rel/ais_front ./
 
 ENV HOME=/app
 
 COPY ./docker/prod/ais_front/init.sh /init.sh
 RUN chmod +x /init.sh
 
+USER nobody:nogroup
 
 CMD ["/init.sh"]
 

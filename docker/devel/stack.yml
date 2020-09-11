@@ -1,7 +1,7 @@
 version: "3.7"
 services:
     db:
-        image: ais_postgres
+        image: ais_postgres:devel
         # restart: always
         volumes:
             - db-data:/var/lib/postgresql/data
@@ -25,7 +25,7 @@ services:
             - -c
             - 'tcp_keepalives_count=10'
     receiver:
-        image: ais_back
+        image: ais_back:devel
         networks:
             - backend
         command: ["/init.sh", "startservices"]
@@ -34,7 +34,7 @@ services:
             POSTGRES_USER: postgres
             POSTGRES_PASSWORD: postgres
     app:
-        image: ais_front
+        image: ais_front:devel
         volumes:
             - ais_front:/app
         networks:

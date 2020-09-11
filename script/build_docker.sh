@@ -1,7 +1,7 @@
 #!/bin/bash
 # build the docker images
 
-ENV=[[ -z "$ENV" ]] && "devel" || "$ENV"
+ENV=$(test -z "$ENV" && echo "devel" || echo "$ENV")
 
 case "$ENV" in
     "devel"|"prod") ;;

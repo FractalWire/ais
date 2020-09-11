@@ -1,7 +1,10 @@
 #!/bin/bash
 # run the docker stack
 
-ENV=[[ -z "$ENV" ]] && "devel" || "$ENV"
+export ENV=$(test -z "$ENV" && echo "devel" || echo "$ENV")
+
+# set secrets if needed
+script/set_secrets.sh
 
 case "$ENV" in
     "devel"|"prod") ;;

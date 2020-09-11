@@ -15,11 +15,9 @@ cd /app
 echo
 
 # no mix here, we need a custom command
-#mix do deps.get, ecto.setup
+bin/ais_front eval "AisFront.Release.migrate"
 
 echo
 echo 'Launching the website now...'
-
-cd /app
 
 bin/ais_front start
