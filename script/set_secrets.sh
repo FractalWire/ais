@@ -35,4 +35,7 @@ do
     fi
 done
 
+echo "Secrets are set. If you need to edit those, you can do so in the newly"
+echo "related files created in the secrets folder"
+
 exit 0

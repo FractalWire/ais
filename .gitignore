@@ -122,3 +122,8 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+
+# Ignore secret files
+secrets/**/*.txt
+!secrets/**/secrets.txt # except secrets.txt files
