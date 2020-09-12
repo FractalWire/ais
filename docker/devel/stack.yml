@@ -28,7 +28,7 @@ services:
         image: ais_back:devel
         networks:
             - backend
-        command: ["/init.sh", "startservices"]
+        command: ["/init.d/init.sh", "startservices"]
         environment:
             POSTGRES_HOST: db
             POSTGRES_USER: postgres
@@ -40,7 +40,7 @@ services:
         networks:
             - backend
             - frontend
-        command: ["/init.sh"]
+        command: ["/init.d/init.sh"]
         environment:
             POSTGRES_HOST: db
         ports:
