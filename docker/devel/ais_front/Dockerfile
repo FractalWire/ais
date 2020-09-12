@@ -15,9 +15,6 @@ RUN apt-get install -y netcat inotify-tools curl \
 WORKDIR /app
 RUN mix do local.hex --force, local.rebar --force
 
-# WORKDIR /app/assets
-# RUN npm install \
-#     && node node_modules/webpack/bin/webpack.js --mode development
 
 COPY ./docker/devel/ais_front/init.sh /init.sh
 RUN chmod +x /init.sh
