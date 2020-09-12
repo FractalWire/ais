@@ -1,14 +1,11 @@
-#!/bin/sh
+#!/bin/bash
 # Starting script for the ais front web site
 
-echo -n "Waiting for server $POSTGRES_HOST to start."
-until netcat -z $POSTGRES_HOST 5432 > /dev/null 2>&1; do
-    echo -n '.'
-    sleep 1
-done
+source /init.d/init.db_online.sh
+source /init.d/init.secrets_to_env.sh
 
-echo
-echo "The server $POSTGRES_HOST is online"
+wait_db
+export_secrets
 
 cd /app
 
@@ -29,3 +26,5 @@ echo 'Launching the website now...'
 cd /app
 
 mix phx.server
+
+exit 0
