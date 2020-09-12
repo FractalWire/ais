@@ -13,8 +13,8 @@ services:
                 constraints:
                     - node.role == manager
         environment:
-            POSTGRES_USER: /run/secrets/postgres_user
-            POSTGRES_PASSWORD: /run/secrets/postgres_password
+            POSTGRES_USER_FILE: /run/secrets/postgres_user
+            POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
         command:
             - postgres
             - -c
