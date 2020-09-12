@@ -30,12 +30,12 @@ do
     then
         read -r -p "set secret $secret: " secret_value
         echo "$secret_value" > "$file"
-    else
-        echo "$file already exists"
+    # else
+    #     echo "$file already exists"
     fi
 done
 
-echo "Secrets are set. If you need to edit those, you can do so in the newly"
-echo "related files created in the secrets folder"
+echo "Secrets are set. If you need to edit those, you can do so in the newly" \
+    "related files created in the secrets folder"
 
 exit 0
