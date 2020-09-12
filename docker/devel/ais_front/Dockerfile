@@ -15,9 +15,8 @@ RUN apt-get install -y netcat inotify-tools curl \
 WORKDIR /app
 RUN mix do local.hex --force, local.rebar --force
 
+COPY ./docker/devel/ais_front/init.sh /init.d/init.sh
+COPY ./docker/common/init.d/*.sh /init.d/
+RUN chmod +x /init.d/*.sh
 
-COPY ./docker/devel/ais_front/init.sh /init.sh
-RUN chmod +x /init.sh
-
-
-CMD ["/init.sh"]
+CMD ["/init.d/init.sh"]

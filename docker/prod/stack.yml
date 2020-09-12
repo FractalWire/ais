@@ -30,7 +30,7 @@ services:
         image: ais_back:prod
         networks:
             - backend
-        command: ["/init.sh", "startservices"]
+        command: ["/init.d/init.sh", "startservices"]
         environment:
             POSTGRES_HOST: db
             POSTGRES_USER: /run/secrets/postgres_user
@@ -47,7 +47,7 @@ services:
         networks:
             - backend
             - frontend
-        command: ["/init.sh"]
+        command: ["/init.d/init.sh"]
         environment:
             ELIXIR_SECRET: /run/secrets/elixir_secret
             POSTGRES_HOST: db

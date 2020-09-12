@@ -53,10 +53,10 @@ COPY --from=build --chown=nobody:nogroup /app/_build/prod/rel/ais_front ./
 
 ENV HOME=/app
 
-COPY ./docker/prod/ais_front/init.sh /init.sh
-RUN chmod +x /init.sh
+COPY ./docker/prod/ais_front/init.sh /init.d/init.sh
+COPY ./docker/common/init.d/*.sh /init.d/
+RUN chmod +x /init.d/*.sh
 
 USER nobody:nogroup
 
-CMD ["/init.sh"]
-
+CMD ["/init.d/init.sh"]

@@ -20,8 +20,10 @@ RUN apt-get install -y binutils libproj-dev gdal-bin libgeos-dev \
     && pip install -r /requirements/dev.txt \
     && apt-get autoremove -y gcc python3-dev musl-dev
 
-COPY ./docker/prod/ais_back/init.sh /init.sh
-RUN chmod +x /init.sh && apt-get install -y inetutils-ping
+COPY ./docker/prod/ais_back/init.sh /init.d/init.sh
+COPY ./docker/common/init.d/*.sh /init.d/
+RUN chmod +x /init.d/*.sh
+RUN apt-get install -y netcat
 
 RUN mkdir -p /app/ais \
     && useradd ais
@@ -33,4 +35,4 @@ RUN chown -R ais:ais .
 
 USER ais
 
-CMD ["/init.sh","help"]
+CMD ["/init.d/init.sh","help"]
