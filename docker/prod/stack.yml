@@ -33,10 +33,6 @@ services:
         command: ["/init.d/init.sh", "startservices"]
         environment:
             POSTGRES_HOST: db
-            POSTGRES_USER: /run/secrets/postgres_user
-            POSTGRES_PASSWORD: /run/secrets/postgres_password
-            DJANGO_SECRET: /run/secrets/django_secret
-            AISHUBAPI_USERNAME: /run/secrets/aishubapi_username
         secrets:
             - postgres_user
             - postgres_password
@@ -49,14 +45,10 @@ services:
             - frontend
         command: ["/init.d/init.sh"]
         environment:
-            ELIXIR_SECRET: /run/secrets/elixir_secret
             POSTGRES_HOST: db
-            POSTGRES_USER: /run/secrets/postgres_user
-            POSTGRES_PASSWORD: /run/secrets/postgres_password
-            BACK_DATABASE_HOST: /run/secrets/back_database_host
-            FRONT_DATABASE_HOST: /run/secrets/front_database_host
+            PORT: 4000
         ports:
-            - "80:80"
+            - "80:4000"
         secrets:
             - elixir_secret
             - postgres_user
