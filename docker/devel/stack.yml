@@ -45,16 +45,6 @@ services:
             POSTGRES_HOST: db
         ports:
             - "4000:4000"
-    # geoserver:
-    #     image: kartoza/geoserver
-    #     volumes:
-    #         - geoserver-data:/opt/geoserver/data_dir
-    #     networks:
-    #         - backend
-    #     environment:
-    #         STABLE_EXTENSIONS: css-plugin
-    #     ports:
-    #         - "8600:8080"
 
 networks:
     backend:
@@ -63,5 +53,3 @@ volumes:
     db-data:
     ais_front:
         external: true
-    # geoserver-data:
-    #     external: true
