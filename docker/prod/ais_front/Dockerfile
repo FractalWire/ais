@@ -1,7 +1,10 @@
-FROM elixir:1.9.0-alpine AS build
+FROM elixir:slim AS build
 
 # install build dependencies
-RUN apk add --no-cache build-base npm git python
+RUN apt-get update \
+    && apt-get install -y curl \
+    && curl -sL https://deb.nodesource.com/setup_14.x | bash - \
+    && apt-get install -y nodejs
 
 # prepare build dir
 WORKDIR /app
@@ -20,7 +23,7 @@ RUN mix do deps.get, deps.compile
 
 # build assets
 COPY ais_front/assets/package.json ais_front/assets/package-lock.json ./assets/
-RUN npm --prefix ./assets ci --progress=false --no-audit --loglevel=error
+RUN npm --prefix ./assets ci --progress=false --no-audit
 
 COPY ais_front/priv priv
 COPY ais_front/assets assets
