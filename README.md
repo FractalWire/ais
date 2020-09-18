@@ -4,7 +4,7 @@
 
 This project uses the [AIS](https://en.wikipedia.org/wiki/Automatic_identification_system) protocol to show the positions of ships around the globe in real-time.
 
- The  
+#### [This project is still in its early stage and needs more polishing]
 
 It is splitted in two submodules:
 
@@ -16,7 +16,7 @@ It is splitted in two submodules:
 
 ### About this repository
 
-This repository provides docker files and useful script to run the application in a containarized environment.
+This repository provides docker files and useful script to run the application in a containerized environment.
 
 #### How to use it
 
@@ -41,7 +41,7 @@ $ ENV=devel script/build_docker.sh
 Ensure a docker swarm is initialised.
 
 ```bash
-docker swarm init
+$ docker swarm init
 ```
 
 You can now run the application like so:
@@ -52,7 +52,7 @@ $ ENV=devel script/run_stack.sh
 
 On the first run, some docker secrets will be set.
 
-Among other things, you'll be ask to input a valid `aishubapi_username`. If you're not a member of aishub.net with a valid username, you won't be able to display any data.
+Among other things, you'll be ask to input a valid `aishubapi_username`. If you're not a member of aishub.net with a valid username, you won't be able to store and display any data.
 
 This is a limitation of the project as we are only working with aishub provider at the moment.
 
