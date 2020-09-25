@@ -17,7 +17,7 @@ COPY ./ais_back/requirements /requirements
 RUN apt-get install -y binutils libproj-dev gdal-bin libgeos-dev \
     && apt-get install -y libpq-dev \
     && apt-get install -y gcc python3-dev musl-dev \
-    && pip install -r /requirements/dev.txt \
+    && pip install -r /requirements/prod.txt \
     && apt-get autoremove -y gcc python3-dev musl-dev
 
 COPY ./docker/prod/ais_back/init.sh /init.d/init.sh
